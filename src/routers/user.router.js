@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/user.controller');
-const verifyToken = require('../middlewares/auth');
+const verifyToken = require('../middlewares/auth.middleware');
 
 // Note: Original index.js had routes like '/employees', '/employeesassignee'.
 // I will mount this router at root in app.js for simplicity given the mix of paths.

@@ -15,10 +15,14 @@ const connectorRouter = require('./routers/connector.router');
 const qrcodeRouter = require('./routers/qrcode.router');
 const customerRouter = require('./routers/customer.router');
 const whatsappRouter = require('./routers/whatsapp.router');
+const metricsRouter = require('./routers/metrics.router');
+const segregationRouter = require('./routers/segregation.router');
+const creditRouter = require('./routers/credit.router');
 
 
 const app = express();
 
+// 1. Move Logger to the VERY TOP (after json/cors)
 app.use(express.json());
 app.use(cors());
 
@@ -44,7 +48,14 @@ app.get('/test', (req, res) => {
 });
 
 // Mount Routers
-// Note: Some routers defined paths assuming root mount (e.g. /employees, /login).
+// Mount Routers
+// Group 1: Specific API Routers (Higher Priority)
+app.use('/api/whatsapp', whatsappRouter);
+app.use('/api', segregationRouter);
+app.use('/api', metricsRouter);
+app.use('/api/credit', creditRouter);
+
+// Group 2: Root-mounted legacy routers
 app.use(authRouter);
 app.use(userRouter);
 app.use(leadRouter);
@@ -55,7 +66,6 @@ app.use(salesRouter);
 app.use(connectorRouter);
 app.use(qrcodeRouter);
 app.use(customerRouter);
-app.use('/api/whatsapp', whatsappRouter);
 
 
 module.exports = app;

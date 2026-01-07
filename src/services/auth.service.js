@@ -1,5 +1,6 @@
 const UserModel = require('../models/user.model');
 const bcrypt = require('bcryptjs');
+const tokenStore = require('../db/tokenStore');
 
 class AuthService {
     async login(username, password) {
@@ -13,7 +14,17 @@ class AuthService {
         }
         if (user.password) delete user.password;
         const token = require('node:crypto').randomBytes(64).toString('hex');
+
+        // Store token in tokenStore
+        tokenStore.set(token, user);
+
         return { message: 'Login successful', user, token };
+    }
+
+    async logout(token) {
+        if (token) {
+            tokenStore.delete(token);
+        }
     }
 
     async changePassword(username, currentpassword, newpassword) {

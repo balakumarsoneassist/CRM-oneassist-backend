@@ -40,6 +40,11 @@ class ReportModel {
         const { rows } = await pool.query('SELECT * FROM GetDashboardadmin()');
         return rows;
     }
+    
+    async getUserReport(orgid, fromdate, todate) {
+        const { rows } = await pool.query("SELECT * FROM getUserReport($1, $2, $3)", [orgid, fromdate, todate]);
+        return rows;
+    }
 }
 
 module.exports = new ReportModel();

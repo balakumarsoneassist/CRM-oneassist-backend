@@ -1,37 +1,74 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const leadController = require('../controllers/lead.controller');
-const verifyToken = require('../middlewares/auth');
+const leadController = require("../controllers/lead.controller");
+const verifyToken = require("../middlewares/auth.middleware");
 
-// Personal
-router.post('/leadpersonal', verifyToken, leadController.saveLeadPersonal);
-router.get('/leadpersonal', verifyToken, leadController.getLeadPersonalList);
-router.get('/leadpersonal/:id', verifyToken, leadController.getLeadPersonalById);
-router.put('/leadpersonal/:id', verifyToken, leadController.updateLeadPersonal);
+/**
+ * ======================
+ * PUBLIC ROUTES
+ * ======================
+ * (Kept public as per your note in index.js)
+ */
 
-// Occupation
-router.post('/leadoccupationdetails', verifyToken, leadController.saveLeadOccupation);
-router.put('/leadoccupationdetails/:id', verifyToken, leadController.updateLeadOccupation);
-router.get('/leadoccupationdetails/:leadpersonal', verifyToken, leadController.getLeadOccupationByLeadPersonal);
+// Call history & lead tracking details (public)
+router.get("/callhistorytracklist/:tracknumber", leadController.getCallHistoryTrackList);
+router.get("/getleadtrackdetails/:tracknumber", leadController.getLeadTrackDetails);
 
-// Bank
-router.post('/leadbankdetails', verifyToken, leadController.saveLeadBank);
-router.put('/leadbankdetails/:id', verifyToken, leadController.updateLeadBank);
-router.get('/leadbankdetails/:leadpersonal', verifyToken, leadController.getLeadBankByLeadPersonal);
 
-// Loan History
-router.post('/leadloanhistorydetails', verifyToken, leadController.saveLeadLoanHistory);
-router.put('/leadloanhistorydetails/:id', verifyToken, leadController.updateLeadLoanHistory);
-router.get('/leadloanhistorydetails/:leadpersonal', verifyToken, leadController.getLeadLoanHistoryByLeadPersonal);
+/**
+ * ======================
+ * PROTECTED ROUTES
+ * ======================
+ */
 
-// Track
-router.post('/saveleadtrackhistorydetails', verifyToken, leadController.saveLeadTrackHistory);
-router.post('/saveleadtrackdetails', verifyToken, leadController.saveLeadTrackDetails);
-router.post('/saveleadtrackdetails/:tracknumber', verifyToken, leadController.updateLeadTrackDetails);
+router.use(verifyToken);
 
-// Note: In index.js callhistorytracklist and getleadtrackdetails did NOT have verifyToken.
-// I'll keep them consistent with previous findings (no verifyToken).
-router.get('/callhistorytracklist/:tracknumber', leadController.getCallHistoryTrackList);
-router.get('/getleadtrackdetails/:tracknumber', leadController.getLeadTrackDetails);
+/**
+ * ---- Lead Personal Details ----
+ */
+router.post("/leadpersonaldetails", leadController.createLeadPersonal);
+router.get("/leadpersonaldetails", leadController.getLeadPersonal);
+router.get("/leadpersonaldetails/:id", leadController.getLeadPersonalById);
+router.put("/leadpersonaldetails/:id", leadController.updateLeadPersonal);
+
+/**
+ * ---- Lead Occupation Details ----
+ */
+router.post("/leadoccupationdetails", leadController.createLeadOccupation);
+router.put("/leadoccupationdetails/:id", leadController.updateLeadOccupation);
+router.get(
+  "/leadoccupationdetails/:leadpersonal",
+  leadController.getLeadOccupationByLeadPersonal
+);
+
+/**
+ * ---- Lead Bank Details ----
+ */
+router.post("/leadbankdetails", leadController.createLeadBank);
+router.put("/leadbankdetails/:id", leadController.updateLeadBank);
+router.get(
+  "/leadbankdetails/:leadpersonal",
+  leadController.getLeadBankByLeadPersonal
+);
+
+/**
+ * ---- Lead Loan History Details ----
+ */
+router.post("/leadloanhistorydetails", leadController.createLeadLoanHistory);
+router.put("/leadloanhistorydetails/:id", leadController.updateLeadLoanHistory);
+router.get(
+  "/leadloanhistorydetails/:leadpersonal",
+  leadController.getLeadLoanHistoryByLeadPersonal
+);
+
+/**
+ * ---- Lead Tracking ----
+ */
+router.post("/saveleadtrackhistorydetails", leadController.saveLeadTrackHistory);
+router.post("/saveleadtrackdetails", leadController.saveLeadTrackDetails);
+router.post(
+  "/saveleadtrackdetails/:tracknumber",
+  leadController.updateLeadTrackDetails
+);
 
 module.exports = router;

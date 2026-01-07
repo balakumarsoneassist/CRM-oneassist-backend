@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const whatsappController = require('../controllers/whatsapp.controller');
-const verifyToken = require('../middlewares/auth');
+const verifyToken = require('../middlewares/auth.middleware');
 
 console.log('--- (1) WhatsApp Router loaded ---');
 

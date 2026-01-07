@@ -25,6 +25,22 @@ class CustomerService {
     async getCustomerList() {
         return await CustomerModel.selectCustomerList();
     }
+
+    async getAllCustomers(filters) {
+        const data = await CustomerModel.getAllCustomers(filters);
+        const totalCount = await CustomerModel.getAllCustomersCount(filters);
+
+        // Extract filter options for the UI
+        const filterOptions = await CustomerModel.getCustomerFilterOptions();
+
+        return {
+            data,
+            totalCount,
+            filterOptions,
+            page: filters.page,
+            limit: filters.limit
+        };
+    }
 }
 
 module.exports = new CustomerService();

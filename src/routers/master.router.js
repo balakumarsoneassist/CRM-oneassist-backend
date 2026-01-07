@@ -1,25 +1,45 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const masterController = require('../controllers/master.controller');
-const verifyToken = require('../middlewares/auth');
+const masterController = require("../controllers/master.controller");
+const verifyToken = require("../middlewares/auth.middleware");
 
-// Branch
-router.post('/branchmaster', verifyToken, masterController.createBranch);
-router.put('/branchmaster/:id', verifyToken, masterController.updateBranch);
-router.get('/branchmaster', verifyToken, masterController.getBranches);
+/**
+ * ======================
+ * PUBLIC ROUTES
+ * ======================
+ * (As per original behavior)
+ */
 
-// Location
-router.post('/locationmaster', verifyToken, masterController.createLocation);
-router.put('/locationmaster/:id', verifyToken, masterController.updateLocation);
-router.get('/locationmaster', verifyToken, masterController.getLocations);
+// Bank Master (public)
+router.post("/bankmaster", masterController.createBank);
+router.put("/bankmaster/:id", masterController.updateBank);
+router.get("/bankmaster", masterController.getBanks);
+router.get("/bankmaster/:id", masterController.getBankById);
 
-// Bank (No verifyToken in original for bankmaster routes)
-router.post('/bankmaster', masterController.createBank);
-router.put('/bankmaster/:id', masterController.updateBank);
-router.get('/bankmaster', masterController.getBanks);
-router.get('/bankmaster/:id', masterController.getBankById);
+// Loan Master (public)
+router.get("/getloanlist", masterController.getLoanList);
 
-// Loan
-router.get('/getloanlist', masterController.getLoanList);
+
+/**
+ * ======================
+ * PROTECTED ROUTES
+ * ======================
+ */
+
+router.use(verifyToken);
+
+/**
+ * ---- Branch Master ----
+ */
+router.post("/branchmaster", masterController.createBranch);
+router.put("/branchmaster/:id", masterController.updateBranch);
+router.get("/branchmaster", masterController.getBranches);
+
+/**
+ * ---- Location Master ----
+ */
+router.post("/locationmaster", masterController.createLocation);
+router.put("/locationmaster/:id", masterController.updateLocation);
+router.get("/locationmaster", masterController.getLocations);
 
 module.exports = router;

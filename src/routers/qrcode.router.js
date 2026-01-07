@@ -1,10 +1,28 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const qrController = require('../controllers/qrcode.controller');
+const qrController = require("../controllers/qrcode.controller");
+const verifyToken = require("../middlewares/auth.middleware");
 
-// No verifyToken
-router.post('/saveqrcodecustomers', qrController.saveQRCodeCustomers);
-router.post('/saveqrresponse', qrController.saveQRResponse);
-router.get('/getqrresponselist', qrController.getQRResponseList);
+/**
+ * ======================
+ * PUBLIC ROUTES
+ * ======================
+ */
+
+// Save QR code customers (public)
+router.post("/saveqrcodecustomers", qrController.saveQRCodeCustomers);
+
+// Save QR response (public)
+router.post("/saveqrresponse", qrController.saveQRResponse);
+
+
+/**
+ * ======================
+ * PROTECTED ROUTES
+ * ======================
+ */
+
+// Get QR response list (secured)
+router.get("/getqrresponselist", verifyToken, qrController.getQRResponseList);
 
 module.exports = router;

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const contactController = require('../controllers/contact.controller');
-const verifyToken = require('../middlewares/auth');
+const verifyToken = require('../middlewares/auth.middleware');
 
 router.get('/unassignedcontacts/:orgid', verifyToken, contactController.getUnassignedContacts);
 router.get('/assignedcontacts/:userid/:orgid', verifyToken, contactController.getAssignedContacts);

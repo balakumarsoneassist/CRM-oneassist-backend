@@ -1,10 +1,32 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const customerController = require('../controllers/customer.controller');
+const customerController = require("../controllers/customer.controller");
+const verifyToken = require("../middlewares/auth.middleware");
 
-// No verifyToken
-router.post('/customers', customerController.createCustomer);
-router.get('/gettodayappoinment/:empid', customerController.getTodayAppointment);
-router.get('/getcustomerlist', customerController.getCustomerList);
+/**
+ * ======================
+ * PUBLIC ROUTES
+ * ======================
+ */
+
+// Create customer (example: lead capture / public form)
+router.post("/customers", customerController.createCustomer);
+
+// Get today's appointment (if intentionally public)
+router.get("/gettodayappoinment/:empid", customerController.getTodayAppointment);
+
+
+/**
+ * ======================
+ * PROTECTED ROUTES
+ * ======================
+ */
+
+router.use(verifyToken);
+
+// Contacts and Leads are handled in contact.router.js
+
+// Customers & Loans
+router.get("/getcustomerlist", customerController.getCustomerList);
 
 module.exports = router;
