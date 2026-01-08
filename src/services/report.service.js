@@ -1,8 +1,8 @@
 const ReportModel = require('../models/report.model');
 
 class ReportService {
-    async getOverallStatus(orgid) {
-        return await ReportModel.selectOverallStatus(orgid);
+    async getOverallStatus(orgid, empid) {
+        return await ReportModel.selectOverallStatus(orgid, empid);
     }
 
     async getLeadFollowAllStatusReport(orgid, statuscode) {
@@ -24,7 +24,8 @@ class ReportService {
         }
     }
 
-    async getUserReport(assignee, startdate, enddate) {
+    async getUserReport(query) {
+        const { assignee, startdate, enddate } = query;
         return await ReportModel.selectUserReport(assignee, startdate, enddate);
     }
 

@@ -1,11 +1,26 @@
 const ReportService = require('../services/report.service');
 
 exports.getOverallStatus = async (req, res) => {
-    const { orgid } = req.params;
-    if (!orgid || isNaN(parseInt(orgid))) return res.status(400).json({ error: 'orgid must be a valid integer' });
     try {
-        const data = await ReportService.getOverallStatus(parseInt(orgid));
-        res.json({ success: true, data, orgid: parseInt(orgid) });
+        const { orgid } = req.params;
+        let { empid } = req.query;
+
+        console.log(`[getOverallStatus] Query Params:`, req.query);
+        console.log(`[getOverallStatus] User in Request:`, req.user ? JSON.stringify(req.user) : 'undefined');
+
+        // Enforce: Non-admins can only see their own summary
+        if (!req.user?.isadminrights) {
+            empid = req.user?.id;
+        }
+
+        console.log(`[getOverallStatus] Final EmpId Used: ${empid}`);
+
+        const data = await ReportService.getOverallStatus(orgid, empid);
+        res.status(200).json({
+            success: true,
+            data: data,
+            orgid: orgid
+        });
     } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 };
 
@@ -37,11 +52,18 @@ exports.getLCFollowEmpStatusReport = async (req, res) => {
 };
 
 exports.getUserReport = async (req, res) => {
-    const { assignee, startdate, enddate } = req.query;
-    if (!assignee || !startdate || !enddate) return res.status(400).json({ error: 'Missing parameters' });
     try {
-        const data = await ReportService.getUserReport(assignee, startdate, enddate);
-        res.json({ success: true, data, parameters: { assignee, startdate, enddate } });
+        const query = req.query;
+
+        // Enforce: Non-admins can only see their own daily report
+        if (!req.user?.isadminrights) {
+            query.assignee = req.user.id;
+        }
+
+        const data = await ReportService.getUserReport(query);
+        res.status(200).json({
+            success: true, count: data.length, data
+        });
     } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 };
 

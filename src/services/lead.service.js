@@ -47,6 +47,7 @@ class LeadService {
             safeVal(data.type), safeVal(data.status, 'int'), safeVal(data.referencename), safeVal(data.organizationid, 'int'),
             safeVal(data.createdon), safeVal(data.connectorid, 'int'), safeVal(data.createdby), safeVal(data.productname),
             safeVal(currentRemarks), safeVal(data.connectorcontactid, 'int'), safeVal(data.extcustomerid, 'int'), safeVal(data.contacttype),
+            safeVal(data.whatsappnumber),
         ];
 
         const contact = await LeadModel.insertPersonal(values);
@@ -104,7 +105,8 @@ class LeadService {
             'pannumber', 'aadharnumber', 'presentaddress', 'pincode', 'permanentaddress',
             'gender', 'materialstatus', 'noofdependent', 'educationalqualification', 'type',
             'status', 'referencename', 'organizationid', 'createdon', 'connectorid',
-            'createdby', 'productname', 'remarks', 'connectorcontactid', 'extcustomerid', 'contacttype'
+            'createdby', 'productname', 'remarks', 'connectorcontactid', 'extcustomerid', 'contacttype',
+            'whatsappnumber'
         ];
         const pool = require('../db/index');
         const cleanMob = (data.mobilenumber || "").replace(/\D/g, '').slice(-10);

@@ -3,6 +3,9 @@ const router = express.Router();
 const reportController = require("../controllers/report.controller");
 const verifyToken = require("../middlewares/auth.middleware");
 
+// Secure all report routes
+router.use(verifyToken);
+
 /**
  * ======================
  * PUBLIC REPORT ROUTES
@@ -29,8 +32,6 @@ router.get(
  * PROTECTED REPORT ROUTES
  * ======================
  */
-
-router.use(verifyToken);
 
 router.get("/getuserreport", reportController.getUserReport);
 router.get("/getdashboarduser/:empid", reportController.getDashboardUser);

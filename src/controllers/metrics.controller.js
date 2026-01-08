@@ -19,7 +19,13 @@ class MetricsController {
 
     async getTargetMetrics(req, res) {
         try {
-            const targetId = req.query.employeeId || req.user?.id;
+            let targetId = req.query.employeeId || req.user?.id;
+
+            // Enforce: Non-admins can only see their own metrics
+            if (!req.user?.isadminrights) {
+                targetId = req.user.id;
+            }
+
             if (!targetId) return res.status(400).json({ error: "Employee ID not provided" });
             const data = await metricsService.getTargetMetrics(targetId);
             res.json({ success: true, data });
