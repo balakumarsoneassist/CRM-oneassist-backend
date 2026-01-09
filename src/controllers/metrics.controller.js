@@ -67,6 +67,22 @@ class MetricsController {
             res.status(err.status || 500).json({ error: err.message || "Internal server error" });
         }
     }
+
+    async getRevenueBreakdown(req, res) {
+        try {
+            let targetId = req.params.employeeId || req.user?.id;
+            // Enforce: Non-admins can only see their own breakdown
+            if (!req.user?.isadminrights && req.user.id !== targetId) {
+                targetId = req.user.id;
+            }
+            if (!targetId) return res.status(400).json({ error: "Employee ID required" });
+            const data = await metricsService.getRevenueBreakdown(targetId);
+            res.json({ success: true, data });
+        } catch (err) {
+            console.error("Error in getRevenueBreakdown:", err);
+            res.status(err.status || 500).json({ error: err.message || "Internal server error" });
+        }
+    }
 }
 
 module.exports = new MetricsController();
