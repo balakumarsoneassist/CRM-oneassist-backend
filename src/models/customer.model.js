@@ -122,31 +122,30 @@ class CustomerModel {
     }
 
     async getCustomerList(followedBy = null) {
-        try {
-            if (followedBy) {
-                // Use a query that explicitly qualifies columns to avoid ambiguity
-                const { rows } = await pool.query(`
-                    SELECT g.* 
-                    FROM (SELECT * FROM GetCustomerList()) g
-                    JOIN customers c ON (g.id = c.id)
-                    WHERE c.leadfollowedby::text = $1::text
-                `, [followedBy]);
-                return rows;
-            }
-        } catch (e) {
-            console.error("[CUSTOMER MODEL] JOIN filtering failed in getCustomerList:", e.message);
+        let query = `
+            SELECT 
+                c.id, 
+                c.name, 
+                c.bank as bank, 
+                c.product as product, 
+                c.disbursedvalue as loanamount, 
+                COALESCE(ltd.compcat, '') as companycategory, 
+                COALESCE(ltd.custsegment, '') as customersegment,
+                c.mobilenumber,
+                c.email,
+                c.createdon,
+                ltd.isdirectmeet,
+                ltd.appoinmentdate
+            FROM customers c
+            LEFT JOIN leadtrackdetails ltd ON c.leadid = ltd.leadid
+        `;
+        const values = [];
+        if (followedBy) {
+            query += ` WHERE c.leadfollowedby::text = $1::text`;
+            values.push(followedBy);
         }
-
-        const { rows } = await pool.query("SELECT * FROM GetCustomerList()");
-
-        if (followedBy && rows.length > 0) {
-            return rows.filter(r =>
-                (r.leadfollowedby && r.leadfollowedby.toString() === followedBy.toString()) ||
-                (r.converter && r.converter.toString() === followedBy.toString()) ||
-                (r.empid && r.empid.toString() === followedBy.toString())
-            );
-        }
-
+        query += ` ORDER BY c.createdon DESC`;
+        const { rows } = await pool.query(query, values);
         return rows;
     }
 
