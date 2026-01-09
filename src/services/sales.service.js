@@ -63,6 +63,38 @@ class SalesService {
 
             custid = newCustomer.id; // Use the new ID
         }
+        // Handle CRM Customer (from Customer List)
+        else if (record_type === 'customer') {
+            const CustomerModel = require('../models/customer.model');
+            // Check if custid is potentially a SalesVisitCustomer ID or a raw Customer ID.
+            // Since the user is coming from the main Customer List, it is a raw Customer ID.
+            const crmCustomer = await CustomerModel.findById(custid);
+
+            if (crmCustomer) {
+                const fullName = crmCustomer.name || 'Unknown';
+                const mobileno = crmCustomer.mobilenumber || '';
+                const location = crmCustomer.location || crmCustomer.bank || 'Unknown';
+                const createdby = reqCreatedBy || 0;
+
+                // Fetch existing or insert new Sales Customer using mobile number for deduplication
+                const newCustomer = await SalesModel.insertCustomer([
+                    fullName,
+                    mobileno,
+                    'CRM Customer',
+                    'Customer',
+                    location,
+                    0,
+                    `Promoted from CRM Customer ID: ${custid}`,
+                    createdby,
+                    false
+                ]);
+
+                // Update custid to the Sales Visit Customer ID
+                custid = newCustomer.id;
+            } else {
+                console.warn(`[SalesService] CRM Customer ID ${custid} not found.`);
+            }
+        }
 
         return await SalesModel.insertTrack([custid, dateofvisit, nextvisit, remarks]);
     }

@@ -122,9 +122,10 @@ class CustomerModel {
 
   async getCustomerList(followedBy = null) {
     let query = `
-            SELECT 
+            SELECT DISTINCT ON (c.id)
                 c.id, 
-                c.name, 
+                c.name,
+                c.loandate, 
                 c.bank as bank, 
                 c.product as product, 
                 c.disbursedvalue as loanamount, 
@@ -134,16 +135,19 @@ class CustomerModel {
                 c.email,
                 c.createdon,
                 ltd.isdirectmeet,
-                ltd.appoinmentdate
+                ltd.appoinmentdate,
+                e.name as converter,
+                e.name as following
             FROM customers c
             LEFT JOIN leadtrackdetails ltd ON c.leadid = ltd.leadid
+            LEFT JOIN employeedetails e ON c.leadfollowedby::text = e.id::text
         `;
     const values = [];
     if (followedBy) {
       query += ` WHERE c.leadfollowedby::text = $1::text`;
       values.push(followedBy);
     }
-    query += ` ORDER BY c.createdon DESC`;
+    query += ` ORDER BY c.id DESC`;
     const { rows } = await pool.query(query, values);
     return rows;
   }
@@ -157,6 +161,14 @@ class CustomerModel {
     const { rows } = await pool.query(
       "SELECT * FROM customers WHERE leadid = $1",
       [leadid]
+    );
+    return rows[0];
+  }
+
+  async findById(id) {
+    const { rows } = await pool.query(
+      "SELECT * FROM customers WHERE id = $1",
+      [id]
     );
     return rows[0];
   }
@@ -278,9 +290,8 @@ class CustomerModel {
       placeholderIdx++;
     }
 
-    query += ` ORDER BY c.createdon DESC LIMIT $${placeholderIdx} OFFSET $${
-      placeholderIdx + 1
-    }`;
+    query += ` ORDER BY c.createdon DESC LIMIT $${placeholderIdx} OFFSET $${placeholderIdx + 1
+      }`;
     values.push(limit, offset);
 
     const { rows } = await pool.query(query, values);

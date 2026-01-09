@@ -150,38 +150,44 @@ class CustomerService {
             if (leadbox.length > 0) leadid = leadbox[0].id;
         }
 
-        if (!leadid) throw new Error("Associated Lead not found for this customer");
+        if (!leadid) {
+            console.warn(`[Reassign] Associated Lead not found for customer ${customerId}. Proceeding with Customer-only update.`);
+        }
 
         // 3. Perform Reassignment
 
         // A. Update Customer Table
+        // If we found a lead link (restored), we update it. If not, we keep it as is (null).
         await pool.query(
             "UPDATE customers SET leadid = $1, leadfollowedby = $2 WHERE id = $3",
-            [leadid, empid, customerId]
+            [leadid || customer.leadid, empid, customerId]
         );
 
-        // B. Update/Create Track
-        const { rows: trackExists } = await pool.query(
-            "SELECT 1 FROM leadtrackdetails WHERE leadid = $1", [leadid]
-        );
-
-        if (trackExists.length > 0) {
-            await pool.query(
-                "UPDATE leadtrackdetails SET customer = true, leadfollowedby = $2, status = 2 WHERE leadid = $1",
-                [leadid, empid.toString()]
+        // Only update Lead tables if we actually have a Lead ID
+        if (leadid) {
+            // B. Update/Create Track
+            const { rows: trackExists } = await pool.query(
+                "SELECT 1 FROM leadtrackdetails WHERE leadid = $1", [leadid]
             );
-        } else {
+
+            if (trackExists.length > 0) {
+                await pool.query(
+                    "UPDATE leadtrackdetails SET customer = true, leadfollowedby = $2, status = 2 WHERE leadid = $1",
+                    [leadid, empid.toString()]
+                );
+            } else {
+                await pool.query(
+                    "INSERT INTO leadtrackdetails (leadid, organizationid, customer, status, leadfollowedby, modifyon) VALUES ($1, $2, true, 2, $3, NOW())",
+                    [leadid, orgid, empid.toString()]
+                );
+            }
+
+            // C. Update Lead Personal Details
             await pool.query(
-                "INSERT INTO leadtrackdetails (leadid, organizationid, customer, status, leadfollowedby, modifyon) VALUES ($1, $2, true, 2, $3, NOW())",
-                [leadid, orgid, empid.toString()]
+                "UPDATE leadpersonaldetails SET status = 2, type = 'Customer', contacttype = 'Customer' WHERE id = $1",
+                [leadid]
             );
         }
-
-        // C. Update Lead Personal Details
-        await pool.query(
-            "UPDATE leadpersonaldetails SET status = 2, type = 'Customer', contacttype = 'Customer' WHERE id = $1",
-            [leadid]
-        );
 
         // D. Insert into Timeline
         if (reason) {
@@ -191,7 +197,7 @@ class CustomerService {
             );
         }
 
-        return { success: true };
+        return { success: true, message: leadid ? "reasigned_fully" : "reasigned_customer_only" };
     }
 
     async getTimeline(customerId) {
