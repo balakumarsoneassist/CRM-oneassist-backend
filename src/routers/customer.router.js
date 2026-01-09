@@ -28,9 +28,5 @@ router.use(verifyToken);
 
 // Customers & Loans
 router.get("/getcustomerlist", customerController.getCustomerList);
-router.post("/customers/reassign/:id", customerController.reassignCustomer);
-router.post("/customers/bulk-assign", customerController.bulkAssignUnassigned);
-router.post("/customers/reassign-to-employee", customerController.reassignToEmployee);
-router.get("/customers/:id/timeline", customerController.getTimeline);
 
 module.exports = router;
