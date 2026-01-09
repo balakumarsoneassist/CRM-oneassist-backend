@@ -13,8 +13,10 @@ const verifyToken = require("../middlewares/auth.middleware");
 router.post("/customers", customerController.createCustomer);
 
 // Get today's appointment (if intentionally public)
-router.get("/gettodayappoinment/:empid", customerController.getTodayAppointment);
-
+router.get(
+  "/gettodayappoinment/:empid",
+  customerController.getTodayAppointment
+);
 
 /**
  * ======================
