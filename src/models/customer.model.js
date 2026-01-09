@@ -121,8 +121,32 @@ class CustomerModel {
         return rows[0];
     }
 
-    async getCustomerList() {
+    async getCustomerList(followedBy = null) {
+        try {
+            if (followedBy) {
+                // Use a query that explicitly qualifies columns to avoid ambiguity
+                const { rows } = await pool.query(`
+                    SELECT g.* 
+                    FROM (SELECT * FROM GetCustomerList()) g
+                    JOIN customers c ON (g.id = c.id)
+                    WHERE c.leadfollowedby::text = $1::text
+                `, [followedBy]);
+                return rows;
+            }
+        } catch (e) {
+            console.error("[CUSTOMER MODEL] JOIN filtering failed in getCustomerList:", e.message);
+        }
+
         const { rows } = await pool.query("SELECT * FROM GetCustomerList()");
+
+        if (followedBy && rows.length > 0) {
+            return rows.filter(r =>
+                (r.leadfollowedby && r.leadfollowedby.toString() === followedBy.toString()) ||
+                (r.converter && r.converter.toString() === followedBy.toString()) ||
+                (r.empid && r.empid.toString() === followedBy.toString())
+            );
+        }
+
         return rows;
     }
 
@@ -131,8 +155,48 @@ class CustomerModel {
         return this.getCustomerList();
     }
 
+    async getCustomerByLeadId(leadid) {
+        const { rows } = await pool.query("SELECT * FROM customers WHERE leadid = $1", [leadid]);
+        return rows[0];
+    }
+
+    async reassignToContact(customerId) {
+        const { rows: custRows } = await pool.query(
+            "SELECT c.leadid, ltd.organizationid FROM customers c LEFT JOIN leadtrackdetails ltd ON c.leadid = ltd.leadid WHERE c.id = $1",
+            [customerId]
+        );
+
+        if (custRows.length === 0) return null;
+        const { leadid, organizationid } = custRows[0];
+
+        if (!leadid) return null;
+
+        // 1. Unlink from customers but keep record for history
+        await pool.query(
+            "UPDATE customers SET leadid = NULL, notes = CONCAT(COALESCE(notes, ''), ' [Reassigned to Unassigned at ', NOW()::text, ']') WHERE id = $1",
+            [customerId]
+        );
+
+        // 2. Remove active tracking
+        await pool.query("DELETE FROM leadtrackdetails WHERE leadid = $1", [leadid]);
+
+        // 3. Reset lead details to 'New' and 'Contact' type
+        await pool.query(
+            `UPDATE leadpersonaldetails 
+             SET status = 1, 
+                 contacttype = 'Contact', 
+                 type = 'Contact',
+                 createdon = NOW(),
+                 organizationid = COALESCE($2, organizationid)
+             WHERE id = $1`,
+            [leadid, organizationid]
+        );
+
+        return { leadid, customerId };
+    }
+
     async getAllCustomers(filters) {
-        const { search, segments, categories, banks, loanTypes, minAmount, maxAmount, page, limit } = filters;
+        const { search, segments, categories, banks, loanTypes, minAmount, maxAmount, page, limit, followedBy } = filters;
         const offset = (page - 1) * limit;
 
         let query = `SELECT 
@@ -194,6 +258,12 @@ class CustomerModel {
             placeholderIdx++;
         }
 
+        if (followedBy) {
+            query += ` AND c.leadfollowedby::text = $${placeholderIdx}::text`;
+            values.push(followedBy);
+            placeholderIdx++;
+        }
+
         query += ` ORDER BY c.createdon DESC LIMIT $${placeholderIdx} OFFSET $${placeholderIdx + 1}`;
         values.push(limit, offset);
 
@@ -202,7 +272,7 @@ class CustomerModel {
     }
 
     async getAllCustomersCount(filters) {
-        const { search, segments, categories, banks, loanTypes, minAmount, maxAmount } = filters;
+        const { search, segments, categories, banks, loanTypes, minAmount, maxAmount, followedBy } = filters;
 
         let query = `SELECT COUNT(*) 
         FROM customers c
@@ -250,6 +320,12 @@ class CustomerModel {
         if (maxAmount !== null) {
             query += ` AND CAST(NULLIF(c.disbursedvalue, '') AS NUMERIC) <= $${placeholderIdx}`;
             values.push(maxAmount);
+            placeholderIdx++;
+        }
+
+        if (followedBy) {
+            query += ` AND c.leadfollowedby::text = $${placeholderIdx}::text`;
+            values.push(followedBy);
             placeholderIdx++;
         }
 

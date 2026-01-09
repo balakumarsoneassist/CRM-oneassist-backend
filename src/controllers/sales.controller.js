@@ -21,14 +21,20 @@ exports.saveSalesVisit = async (req, res) => {
         });
     } catch (err) {
         if (err.partial) {
-            console.error(err.error);
+            console.error('Partial Error:', err.error);
             return res.status(500).json({
                 error: 'Customer saved but failed to save visit track',
+                details: err.error?.message || err.message,
+                stack: err.error?.stack || err.stack,
                 customer: err.customer
             });
         }
-        console.error(err);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error('Full Error:', err);
+        res.status(500).json({
+            error: 'Internal server error',
+            details: err.message,
+            stack: err.stack
+        });
     }
 };
 
@@ -83,6 +89,7 @@ exports.getSVTrackList = async (req, res) => {
 // =========================
 exports.getSVCustomerList = async (req, res) => {
     const { empid } = req.params;
+    console.log('[DEBUG] getSVCustomerList called for empid:', empid);
 
     if (!empid) {
         return res.status(400).json({ error: 'empid required' });
@@ -90,10 +97,14 @@ exports.getSVCustomerList = async (req, res) => {
 
     try {
         const data = await SalesService.getSVCustomerList(empid);
+        console.log(`[DEBUG] Found ${data.length} customers for empid: ${empid}`);
         res.json({ success: true, data, empid });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error('[DEBUG] Error in getSVCustomerList:', err);
+        res.status(500).json({
+            error: 'Internal server error',
+            details: err.message
+        });
     }
 };
 

@@ -130,7 +130,11 @@ class CustomerController {
 
     async getCustomerList(req, res) {
         try {
-            const data = await customerService.getCustomerList();
+            const followedBy = (req.user && (req.user.isadminrights === false || req.user.isadminrights === 'false'))
+                ? req.user.id
+                : null;
+
+            const data = await customerService.getCustomerList(followedBy);
             res.json({
                 success: true,
                 count: data.length,
@@ -163,6 +167,11 @@ class CustomerController {
                 page: parseInt(req.query.page) || 1,
                 limit: parseInt(req.query.limit) || 10
             };
+
+            // If not admin, restrict by employee ID
+            if (req.user && (req.user.isadminrights === false || req.user.isadminrights === 'false')) {
+                filters.followedBy = req.user.id;
+            }
 
             const result = await customerService.getAllCustomers(filters);
             res.json({
@@ -217,6 +226,80 @@ class CustomerController {
             res.status(err.status || 500).json({
                 error: err.message || "Internal server error"
             });
+        }
+    }
+
+    async reassignCustomer(req, res) {
+        try {
+            const { id } = req.params;
+            if (!id) return res.status(400).json({ error: "Customer ID is required" });
+
+            const result = await customerService.reassignToContact(id);
+            if (!result) return res.status(404).json({ error: "Customer not found or no lead linked" });
+
+            res.json({
+                success: true,
+                message: "Customer reassigned to unassigned contacts successfully",
+                data: result
+            });
+        } catch (err) {
+            console.error("Error in reassignCustomer:", err);
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    async bulkAssignUnassigned(req, res) {
+        try {
+            const { empid } = req.body;
+            const orgid = req.body.orgid || (req.user ? req.user.organizationid : null);
+
+            if (!empid) {
+                return res.status(400).json({ error: "Employee ID (empid) is required" });
+            }
+            if (!orgid) {
+                return res.status(400).json({ error: "Organization ID (orgid) is required" });
+            }
+
+            const result = await customerService.bulkAssignUnassigned(empid, orgid);
+            res.json({
+                success: true,
+                message: `Successfully assigned ${result.count} contacts to employee`,
+                count: result.count
+            });
+        } catch (err) {
+            console.error("Error in bulkAssignUnassigned:", err);
+            res.status(500).json({ error: "Internal server error", details: err.message });
+        }
+    }
+
+    async reassignToEmployee(req, res) {
+        try {
+            const { empid, customerId, reason } = req.body;
+            const orgid = req.body.orgid || (req.user ? req.user.organizationid : null);
+
+            if (!empid || !customerId) {
+                return res.status(400).json({ error: "Employee ID and Customer ID are required" });
+            }
+
+            await customerService.reassignToEmployee(customerId, empid, orgid, reason);
+            res.json({
+                success: true,
+                message: "Customer reassigned successfully"
+            });
+        } catch (err) {
+            console.error("Error in reassignToEmployee:", err);
+            res.status(500).json({ error: "Internal server error", details: err.message });
+        }
+    }
+
+    async getTimeline(req, res) {
+        try {
+            const { id } = req.params;
+            const data = await customerService.getTimeline(id);
+            res.json({ success: true, data });
+        } catch (err) {
+            console.error("Error in getTimeline:", err);
+            res.status(500).json({ error: "Internal server error" });
         }
     }
 }

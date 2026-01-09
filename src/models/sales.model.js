@@ -41,12 +41,19 @@ class SalesModel {
         return rows[0];
     }
 
-    // Legacy support (params-based)
+    // Upsert style (handles existing mobile numbers)
     async insertCustomer(params) {
+        // params: [name, mobileno, profession, designation, location, distance, notes, createdby, contactflag]
         const { rows } = await pool.query(
             `INSERT INTO salesvisitcustomers
             (name, mobileno, profession, designation, location, distance, notes, createdby, modifiedby, contactflag)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)
+            ON CONFLICT (mobileno) 
+            DO UPDATE SET 
+                createdby = EXCLUDED.createdby,
+                notes = EXCLUDED.notes,
+                contactflag = EXCLUDED.contactflag,
+                modifiedby = NOW()
             RETURNING id, *`,
             params
         );
@@ -88,11 +95,30 @@ class SalesModel {
      * ========================= */
 
     async findCustomersByEmp(empid) {
+        console.log('[SALES MODEL] findCustomersByEmp - querying for:', empid);
+
+        // Ensure empid is a number or null
+        const numericEmpId = (empid && !isNaN(parseInt(empid))) ? parseInt(empid) : null;
+
         const { rows } = await pool.query(
-            `SELECT * FROM salesvisitcustomers
-             WHERE createdby = $1 AND contactflag = false`,
-            [empid]
+            `SELECT 
+                c.id, c.name, c.mobileno, c.profession, c.designation, 
+                c.location, c.distance, c.notes, c.createdby, c.modifiedby, c.contactflag,
+                COUNT(t.id) as novisit,
+                MAX(t.dateofvisit) as lastvisit,
+                STRING_AGG(DISTINCT t.remarks, ' | ') as all_remarks
+             FROM salesvisitcustomers c
+             LEFT JOIN salesvisittrack t ON c.id = t.custid
+             WHERE (c.createdby = $1 OR c.createdby IS NULL)
+               AND (c.contactflag = false OR c.contactflag IS NULL)
+               AND c.name NOT ILIKE '%Test%'
+             GROUP BY 
+                c.id, c.name, c.mobileno, c.profession, c.designation, 
+                c.location, c.distance, c.notes, c.createdby, c.modifiedby, c.contactflag
+             ORDER BY MAX(t.dateofvisit) DESC NULLS LAST, c.id DESC`,
+            [numericEmpId]
         );
+        console.log(`[SALES MODEL] findCustomersByEmp - Result count: ${rows.length}`);
         return rows;
     }
 
@@ -147,11 +173,12 @@ class SalesModel {
     }
 
     async findBasicCustomersByEmp(empid) {
+        const numericEmpId = (empid && !isNaN(parseInt(empid))) ? parseInt(empid) : null;
         const { rows } = await pool.query(
             `SELECT id, name, mobileno, location
              FROM salesvisitcustomers
              WHERE createdby = $1`,
-            [empid]
+            [numericEmpId]
         );
         return rows;
     }
