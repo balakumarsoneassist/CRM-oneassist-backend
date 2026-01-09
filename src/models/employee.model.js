@@ -7,9 +7,107 @@ class EmployeeModel {
     }
 
     async findAssignees() {
-        const { rows } = await pool.query("SELECT id, name, isactive FROM employeedetails ORDER BY id");
+        const { rows } = await pool.query("SELECT id, name, designation, image_data, isactive FROM employeedetails WHERE isactive = true ORDER BY id");
         return rows;
     }
+
+    async findPaginatedAssignees(params) {
+        const { search, limit, offset, designation, sortBy, sortOrder } = params;
+        const validSortColumns = ['name', 'designation', 'logins', 'sanctions', 'disbursement_volume', 'converted_leads', 'attended_calls'];
+        const sortCol = validSortColumns.includes(sortBy) ? sortBy : 'name';
+        const order = sortOrder === 'desc' ? 'DESC' : 'ASC';
+
+        // OPTIMIZED QUERY: Filters apply directly to base table 'e' BEFORE complex subqueries run.
+        let query = `
+            SELECT 
+                e.id, 
+                e.name, 
+                e.designation, 
+                e.image_data, 
+                e.isactive,
+                -- Logins Actual
+                (SELECT COUNT(*) FROM customers c 
+                    WHERE c.leadfollowedby = e.id 
+                    AND (c.status IN ('13', '15', '17', '18') OR c.status ILIKE 'filelogin' OR c.status ILIKE 'sanction' OR c.status ILIKE 'disbursement' OR c.status ILIKE 'completed')
+                ) as logins,
+                -- Sanctions Actual
+                (SELECT COUNT(*) FROM customers c 
+                    WHERE c.leadfollowedby = e.id 
+                    AND (c.status IN ('15', '17', '18') OR c.status ILIKE 'sanction' OR c.status ILIKE 'disbursement' OR c.status ILIKE 'completed')
+                ) as sanctions,
+                -- Disbursement Actual (Sum)
+                COALESCE((
+                    SELECT SUM(CAST(ltd.desireloanamount AS NUMERIC))
+                    FROM customers c
+                    JOIN leadtrackdetails ltd ON ltd.leadid = c.leadid
+                    WHERE c.leadfollowedby = e.id
+                    AND (c.status::text IN ('17', '18', 'Disbursed') OR c.status::text ILIKE 'disbursement' OR c.status::text ILIKE 'completed')
+                    AND ltd.id = (SELECT MAX(id) FROM leadtrackdetails WHERE leadid = c.leadid)
+                ), 0) as disbursement_volume,
+                -- Converted Leads Actual
+                (SELECT COUNT(*) FROM customers c WHERE c.leadfollowedby = e.id) as converted_leads,
+                -- Attended Calls Actual
+                (SELECT COUNT(*) FROM leadtrackhistorydetails lth WHERE lth.contactfollowedby = e.id) as attended_calls,
+                -- Targets (Joined)
+                COALESCE(tm.logins, 0) as logins_target,
+                COALESCE(tm.sanctions, 0) as sanctions_target,
+                COALESCE(tm.disbursement_volume, 0) as disbursement_target,
+                COALESCE(tm.converted_leads, 0) as converted_target,
+                COALESCE(tm.attended_calls_target, 0) as attended_calls_target
+            FROM employeedetails e
+            LEFT JOIN targetmetrics tm ON e.id = tm.employee_id
+            WHERE e.isactive = true
+        `;
+
+        let values = [];
+        let paramIndex = 1;
+
+        if (search) {
+            query += ` AND e.name ILIKE $${paramIndex}`;
+            values.push(`%${search}%`);
+            paramIndex++;
+        }
+
+        if (designation) {
+            query += ` AND e.designation = $${paramIndex}`;
+            values.push(designation);
+            paramIndex++;
+        }
+
+        // Apply Sorting
+        query += ` ORDER BY ${sortCol} ${order}`;
+
+        // Apply Pagination
+        query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+        values.push(limit, offset);
+
+        const { rows } = await pool.query(query, values);
+        return rows;
+    }
+
+    async countAssignees(params) {
+        const { search, designation } = params;
+
+        let query = "SELECT COUNT(*) FROM employeedetails WHERE isactive = true";
+        let values = [];
+        let paramIndex = 1;
+
+        if (search) {
+            query += ` AND name ILIKE $${paramIndex}`;
+            values.push(`%${search}%`);
+            paramIndex++;
+        }
+
+        if (designation) {
+            query += ` AND designation = $${paramIndex}`;
+            values.push(designation);
+            paramIndex++;
+        }
+
+        const { rows } = await pool.query(query, values);
+        return parseInt(rows[0].count);
+    }
+
 
     async findById(id) {
         const { rows } = await pool.query("SELECT * FROM employeedetails WHERE id = $1", [id]);

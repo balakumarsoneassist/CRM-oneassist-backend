@@ -4,7 +4,17 @@ class MetricsController {
     async getAllAchievementMetrics(req, res) {
         try {
             if (!req.user || !req.user.isadminrights) return res.status(403).json({ error: "Access denied" });
-            const result = await metricsService.getAllAchievementMetrics();
+
+            const limit = parseInt(req.query.limit) || 10;
+            const page = parseInt(req.query.page) || 1;
+            const search = req.query.search || '';
+            const sortBy = req.query.sortBy || 'name';
+            const sortOrder = req.query.sortOrder || 'asc';
+
+
+            const result = await metricsService.getAllAchievementMetrics({
+                page, limit, search, designation: req.query.designation, sortBy, sortOrder
+            });
             res.json({
                 success: true,
                 data: result.data,
@@ -16,6 +26,7 @@ class MetricsController {
             res.status(err.status || 500).json({ error: err.message || "Internal server error" });
         }
     }
+
 
     async getTargetMetrics(req, res) {
         try {

@@ -40,22 +40,110 @@ class ReportModel {
     }
 
     async selectLeadFollowAllStatus(orgid, statuscode) {
-        const { rows } = await pool.query('SELECT * FROM LeadFollowedByAll($1, $2)', [orgid, statuscode]);
+        const query = `
+            SELECT 
+                l.id,
+                l.firstname || ' ' || COALESCE(l.lastname, '') as name,
+                l.mobilenumber,
+                l.email,
+                l.presentaddress as location,
+                e.name as employeename,
+                s.status,
+                t.notes,
+                t.isdirectmeet,
+                t.appoinmentdate,
+                t.contactfollowedby,
+                t.leadfollowedby,
+                t.tracknumber
+            FROM leadpersonaldetails l
+            JOIN leadtrackdetails t ON l.id = t.leadid
+            JOIN statuscode s ON t.status = s.id
+            LEFT JOIN employeedetails e ON t.leadfollowedby = e.id
+            WHERE l.organizationid = $1 AND t.status = $2
+            ORDER BY t.modifyon DESC
+        `;
+        const { rows } = await pool.query(query, [orgid, statuscode]);
         return rows;
     }
 
     async selectContactFollowAllStatus(orgid, statuscode) {
-        const { rows } = await pool.query('SELECT * FROM ContactFollowedByAll($1, $2)', [orgid, statuscode]);
+        const query = `
+            SELECT 
+                l.id,
+                l.firstname || ' ' || COALESCE(l.lastname, '') as name,
+                l.mobilenumber,
+                l.email,
+                l.presentaddress as location,
+                e.name as employeename,
+                s.status,
+                t.notes,
+                t.isdirectmeet,
+                t.appoinmentdate,
+                t.contactfollowedby,
+                t.leadfollowedby,
+                t.tracknumber
+            FROM leadpersonaldetails l
+            JOIN leadtrackdetails t ON l.id = t.leadid
+            JOIN statuscode s ON t.status = s.id
+            LEFT JOIN employeedetails e ON t.contactfollowedby = e.id
+            WHERE l.organizationid = $1 AND t.status = $2
+            ORDER BY t.modifyon DESC
+        `;
+        const { rows } = await pool.query(query, [orgid, statuscode]);
         return rows;
     }
 
     async selectContactFollowEmp(orgid, statuscode, empid) {
-        const { rows } = await pool.query('SELECT * FROM ContactFollowedByEmp($1, $2, $3)', [orgid, statuscode, empid]);
+        const query = `
+            SELECT 
+                l.id,
+                l.firstname || ' ' || COALESCE(l.lastname, '') as name,
+                l.mobilenumber,
+                l.email,
+                l.presentaddress as location,
+                e.name as employeename,
+                s.status,
+                t.notes,
+                t.isdirectmeet,
+                t.appoinmentdate,
+                t.contactfollowedby,
+                t.leadfollowedby,
+                t.tracknumber
+            FROM leadpersonaldetails l
+            JOIN leadtrackdetails t ON l.id = t.leadid
+            JOIN statuscode s ON t.status = s.id
+            LEFT JOIN employeedetails e ON t.contactfollowedby = e.id
+            WHERE l.organizationid = $1 AND t.status = $2 AND t.contactfollowedby = $3
+            ORDER BY t.modifyon DESC
+        `;
+        const { rows } = await pool.query(query, [orgid, statuscode, empid]);
         return rows;
     }
 
     async selectLeadFollowEmp(orgid, statuscode, empid) {
-        const { rows } = await pool.query('SELECT * FROM LeadFollowedByEmp($1, $2, $3)', [orgid, statuscode, empid]);
+        const query = `
+            SELECT 
+                l.id,
+                l.firstname || ' ' || COALESCE(l.lastname, '') as name,
+                l.mobilenumber,
+                l.email,
+                l.presentaddress as location,
+                e.name as employeename,
+                s.status,
+                t.notes,
+                t.isdirectmeet,
+                t.appoinmentdate,
+                t.contactfollowedby,
+                t.leadfollowedby,
+                t.tracknumber
+            FROM leadpersonaldetails l
+            JOIN leadtrackdetails t ON l.id = t.leadid
+            JOIN statuscode s ON t.status = s.id
+            LEFT JOIN employeedetails e ON t.leadfollowedby = e.id
+            WHERE l.organizationid = $1 AND t.status = $2 AND t.leadfollowedby = $3
+            ORDER BY t.modifyon DESC
+        `;
+        const { rows } = await pool.query(query, [orgid, statuscode, empid]);
         return rows;
     }
 
@@ -70,6 +158,7 @@ class ReportModel {
                 e.name as assigneename,
                 s.status,
                 t.appoinmentdate,
+                t.isdirectmeet,
                 l.referencename,
                 t.notes,
                 t.id
@@ -87,12 +176,34 @@ class ReportModel {
     }
 
     async selectDashboardUser(empid) {
-        const { rows } = await pool.query('SELECT * FROM GetDashboarduser($1)', [empid]);
+        const query = `
+            SELECT 
+                s.id as statuscode, 
+                s.status, 
+                COUNT(l.id) as count
+            FROM leadpersonaldetails l
+            JOIN leadtrackdetails t ON l.id = t.leadid
+            JOIN statuscode s ON t.status = s.id
+            WHERE t.contactfollowedby = $1
+            GROUP BY s.id, s.status
+            ORDER BY s.id
+        `;
+        const { rows } = await pool.query(query, [empid]);
         return rows;
     }
 
     async selectDashboardAdmin() {
-        const { rows } = await pool.query('SELECT * FROM GetDashboardadmin()');
+        const query = `
+            SELECT 
+                s.id as statuscode, 
+                s.status, 
+                COUNT(l.id) as count
+            FROM leadpersonaldetails l
+            JOIN statuscode s ON l.status = s.id
+            GROUP BY s.id, s.status
+            ORDER BY s.id
+        `;
+        const { rows } = await pool.query(query);
         return rows;
     }
 
