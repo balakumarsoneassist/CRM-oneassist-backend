@@ -8,6 +8,7 @@ router.use(verifyToken);
 router.get("/all-achievement-metrics", metricsController.getAllAchievementMetrics);
 router.get("/target-achievement", metricsController.getAllAchievementMetrics); // Alias for frontend compat
 router.get("/target-metrics", metricsController.getTargetMetrics);
+router.get("/target-metrics/:employeeId/revenue-breakdown", metricsController.getRevenueBreakdown);
 router.put("/target-metrics/:employeeId", metricsController.updateTargetMetrics);
 router.get("/target-assignment-status", metricsController.getTargetAssignmentStatus);
 

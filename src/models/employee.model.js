@@ -53,7 +53,50 @@ class EmployeeModel {
                 COALESCE(tm.sanctions, 0) as sanctions_target,
                 COALESCE(tm.disbursement_volume, 0) as disbursement_target,
                 COALESCE(tm.converted_leads, 0) as converted_target,
-                COALESCE(tm.attended_calls_target, 0) as attended_calls_target
+                COALESCE(tm.attended_calls_target, 0) as attended_calls_target,
+                COALESCE(tm.revenue_target, 0) as revenue_target,
+                -- Revenue Achievement (Dynamic Calculation)
+                COALESCE((
+                    SELECT SUM(
+                        CASE
+                            -- PL Logic
+                            WHEN LOWER(c.product) ILIKE '%personal loan%' OR LOWER(c.product) = 'pl' THEN
+                                CASE 
+                                    WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.02
+                                    WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.01
+                                    ELSE 0 
+                                END
+                            -- BL Logic
+                            WHEN LOWER(c.product) ILIKE '%business loan%' OR LOWER(c.product) = 'bl' THEN
+                                CASE 
+                                    WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.02
+                                    WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.01
+                                    ELSE 0 
+                                END
+                            -- HL Logic
+                            WHEN LOWER(c.product) ILIKE '%home loan%' OR LOWER(c.product) = 'hl' THEN
+                                CASE 
+                                    WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.005
+                                    WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.003
+                                    ELSE 0 
+                                END
+                            -- LAP Logic
+                            WHEN LOWER(c.product) ILIKE '%loan against property%' OR LOWER(c.product) = 'lap' THEN
+                                CASE
+                                    WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.007
+                                    WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.004
+                                    ELSE 0
+                                END
+                            ELSE 0
+                        END
+                    )
+                    FROM customers c
+                    JOIN leadtrackdetails ltd ON ltd.leadid = c.leadid
+                    JOIN leadpersonaldetails lp ON lp.id = c.leadid
+                    WHERE c.leadfollowedby = e.id
+                    AND (c.status::text IN ('17', '18', 'Disbursed') OR c.status::text ILIKE 'disbursement' OR c.status::text ILIKE 'completed')
+                    AND ltd.id = (SELECT MAX(id) FROM leadtrackdetails WHERE leadid = c.leadid)
+                ), 0) as revenue_achievement
             FROM employeedetails e
             LEFT JOIN targetmetrics tm ON e.id = tm.employee_id
             WHERE e.isactive = true
