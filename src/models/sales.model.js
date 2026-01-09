@@ -1,51 +1,50 @@
 const pool = require("../db/index"); // single pool source
 
 class SalesModel {
+  /* =========================
+   * SALES VISIT CUSTOMER
+   * ========================= */
 
-    /* =========================
-     * SALES VISIT CUSTOMER
-     * ========================= */
+  // New style (object-based)
+  async createCustomer(data) {
+    const {
+      name,
+      mobileno,
+      profession,
+      designation,
+      location,
+      distance,
+      notes,
+      createdby,
+      contactflag = false,
+    } = data;
 
-    // New style (object-based)
-    async createCustomer(data) {
-        const {
-            name,
-            mobileno,
-            profession,
-            designation,
-            location,
-            distance,
-            notes,
-            createdby,
-            contactflag = false
-        } = data;
-
-        const { rows } = await pool.query(
-            `INSERT INTO salesvisitcustomers
+    const { rows } = await pool.query(
+      `INSERT INTO salesvisitcustomers
             (name, mobileno, profession, designation, location, distance, notes, createdby, modifiedby, contactflag)
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9)
             RETURNING id, *`,
-            [
-                name,
-                mobileno,
-                profession,
-                designation,
-                location,
-                distance,
-                notes,
-                createdby,
-                contactflag
-            ]
-        );
+      [
+        name,
+        mobileno,
+        profession,
+        designation,
+        location,
+        distance,
+        notes,
+        createdby,
+        contactflag,
+      ]
+    );
 
-        return rows[0];
-    }
+    return rows[0];
+  }
 
-    // Upsert style (handles existing mobile numbers)
-    async insertCustomer(params) {
-        // params: [name, mobileno, profession, designation, location, distance, notes, createdby, contactflag]
-        const { rows } = await pool.query(
-            `INSERT INTO salesvisitcustomers
+  // Upsert style (handles existing mobile numbers)
+  async insertCustomer(params) {
+    // params: [name, mobileno, profession, designation, location, distance, notes, createdby, contactflag]
+    const { rows } = await pool.query(
+      `INSERT INTO salesvisitcustomers
             (name, mobileno, profession, designation, location, distance, notes, createdby, modifiedby, contactflag)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)
             ON CONFLICT (mobileno) 
@@ -55,53 +54,54 @@ class SalesModel {
                 contactflag = EXCLUDED.contactflag,
                 modifiedby = NOW()
             RETURNING id, *`,
-            params
-        );
-        return rows[0];
-    }
+      params
+    );
+    return rows[0];
+  }
 
-    /* =========================
-     * SALES VISIT TRACK
-     * ========================= */
+  /* =========================
+   * SALES VISIT TRACK
+   * ========================= */
 
-    async createTrack(data) {
-        const { custid, dateofvisit, nextvisit, remarks } = data;
+  async createTrack(data) {
+    const { custid, dateofvisit, nextvisit, remarks } = data;
 
-        const { rows } = await pool.query(
-            `INSERT INTO salesvisittrack
+    const { rows } = await pool.query(
+      `INSERT INTO salesvisittrack
             (custid, dateofvisit, nextvisit, remarks, modifiedby)
             VALUES ($1,$2,$3,$4,NOW())
             RETURNING *`,
-            [custid, dateofvisit, nextvisit, remarks]
-        );
+      [custid, dateofvisit, nextvisit, remarks]
+    );
 
-        return rows[0];
-    }
+    return rows[0];
+  }
 
-    // Legacy alias
-    async insertTrack(params) {
-        const { rows } = await pool.query(
-            `INSERT INTO salesvisittrack
+  // Legacy alias
+  async insertTrack(params) {
+    const { rows } = await pool.query(
+      `INSERT INTO salesvisittrack
             (custid, dateofvisit, nextvisit, remarks, modifiedby)
             VALUES ($1,$2,$3,$4,NOW())
             RETURNING *`,
-            params
-        );
-        return rows[0];
-    }
+      params
+    );
+    return rows[0];
+  }
 
-    /* =========================
-     * FETCH METHODS
-     * ========================= */
+  /* =========================
+   * FETCH METHODS
+   * ========================= */
 
-    async findCustomersByEmp(empid) {
-        console.log('[SALES MODEL] findCustomersByEmp - querying for:', empid);
+  async findCustomersByEmp(empid) {
+    console.log("[SALES MODEL] findCustomersByEmp - querying for:", empid);
 
-        // Ensure empid is a number or null
-        const numericEmpId = (empid && !isNaN(parseInt(empid))) ? parseInt(empid) : null;
+    // Ensure empid is a number or null
+    const numericEmpId =
+      empid && !isNaN(parseInt(empid)) ? parseInt(empid) : null;
 
-        const { rows } = await pool.query(
-            `SELECT 
+    const { rows } = await pool.query(
+      `SELECT 
                 c.id, c.name, c.mobileno, c.profession, c.designation, 
                 c.location, c.distance, c.notes, c.createdby, c.modifiedby, c.contactflag,
                 COUNT(t.id) as novisit,
@@ -116,66 +116,68 @@ class SalesModel {
                 c.id, c.name, c.mobileno, c.profession, c.designation, 
                 c.location, c.distance, c.notes, c.createdby, c.modifiedby, c.contactflag
              ORDER BY MAX(t.dateofvisit) DESC NULLS LAST, c.id DESC`,
-            [numericEmpId]
-        );
-        console.log(`[SALES MODEL] findCustomersByEmp - Result count: ${rows.length}`);
-        return rows;
-    }
+      [numericEmpId]
+    );
+    console.log(
+      `[SALES MODEL] findCustomersByEmp - Result count: ${rows.length}`
+    );
+    return rows;
+  }
 
-    // Alias
-    async selectCustomerList(empid) {
-        return this.findCustomersByEmp(empid);
-    }
+  // Alias
+  async selectCustomerList(empid) {
+    return this.findCustomersByEmp(empid);
+  }
 
-    async findTrackByCust(custid) {
-        const { rows } = await pool.query(
-            `SELECT id, dateofvisit, nextvisit, remarks
+  async findTrackByCust(custid) {
+    const { rows } = await pool.query(
+      `SELECT id, dateofvisit, nextvisit, remarks
              FROM salesvisittrack WHERE custid = $1`,
-            [custid]
-        );
-        return rows;
-    }
+      [custid]
+    );
+    return rows;
+  }
 
-    // Alias
-    async selectTrackByCustId(custid) {
-        return this.findTrackByCust(custid);
-    }
+  // Alias
+  async selectTrackByCustId(custid) {
+    return this.findTrackByCust(custid);
+  }
 
-    /* =========================
-     * UPDATE METHODS
-     * ========================= */
+  /* =========================
+   * UPDATE METHODS
+   * ========================= */
 
-    async updateCustomerFlag(id) {
-        const { rows } = await pool.query(
-            `UPDATE salesvisitcustomers
+  async updateCustomerFlag(id) {
+    const { rows } = await pool.query(
+      `UPDATE salesvisitcustomers
              SET contactflag = true, modifiedby = NOW()
              WHERE id = $1
              RETURNING *`,
-            [parseInt(id)]
-        );
-        return rows[0];
-    }
+      [parseInt(id)]
+    );
+    return rows[0];
+  }
 
-    /* =========================
-     * REPORTS / COUNTS
-     * ========================= */
+  /* =========================
+   * REPORTS / COUNTS
+   * ========================= */
 
-    async getCustomerCount() {
-        const { rows } = await pool.query(
-            "SELECT * FROM SalesVisitCustomerCount()"
-        );
-        return rows;
-    }
+  async getCustomerCount() {
+    const { rows } = await pool.query(
+      "SELECT * FROM SalesVisitCustomerCount()"
+    );
+    return rows;
+  }
 
-    // Alias
-    async selectAllCustomersCount() {
-        return this.getCustomerCount();
-    }
+  // Alias
+  async selectAllCustomersCount() {
+    return this.getCustomerCount();
+  }
 
-    async findBasicCustomersByEmp(empid) {
-        console.log('🔍 Executing findBasicCustomersByEmp for EmpID:', empid);
-        const { rows } = await pool.query(
-            `
+  async findBasicCustomersByEmp(empid) {
+    console.log("🔍 Executing findBasicCustomersByEmp for EmpID:", empid);
+    const { rows } = await pool.query(
+      `
             SELECT 
                 s.id, 
                 s.name, 
@@ -224,20 +226,22 @@ class SalesModel {
             AND t.contactfollowedby = $1::integer
             AND TRIM(l.mobilenumber) NOT IN (SELECT TRIM(mobileno) FROM salesvisitcustomers WHERE createdby = $1::integer AND contactflag = false)
             `,
-            [empid]
-        );
-        const nandha = rows.find(r => r.name && r.name.toLowerCase().includes('nandha'));
-        if (nandha) {
-            console.log('🔍 Debug Nandha Row:', JSON.stringify(nandha));
-        }
-        console.log('✅ findBasicCustomersByEmp result count:', rows.length);
-        return rows;
+      [empid]
+    );
+    const nandha = rows.find(
+      (r) => r.name && r.name.toLowerCase().includes("nandha")
+    );
+    if (nandha) {
+      console.log("🔍 Debug Nandha Row:", JSON.stringify(nandha));
     }
+    console.log("✅ findBasicCustomersByEmp result count:", rows.length);
+    return rows;
+  }
 
-    // Alias
-    async selectCustomersByEmp(empid) {
-        return this.findBasicCustomersByEmp(empid);
-    }
+  // Alias
+  async selectCustomersByEmp(empid) {
+    return this.findBasicCustomersByEmp(empid);
+  }
 }
 
 module.exports = new SalesModel();

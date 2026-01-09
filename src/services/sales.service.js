@@ -1,29 +1,27 @@
 const SalesModel = require('../models/sales.model');
+const LeadModel = require('../models/lead.model');
 
 class SalesService {
     async saveSalesVisit(data) {
-        let { name, mobileno, profession, designation, location, distance, notes, createdby, contactflag, dateofvisit, nextvisit, remarks } = data;
+        const { name, mobileno, profession, designation, location, notes, contactflag, remarks } = data;
+        let { dateofvisit, nextvisit, distance, createdby } = data;
 
-        // Clean data for database compatibility
-        distance = (distance === '' || distance === undefined || distance === null) ? null : parseInt(distance);
-        dateofvisit = (dateofvisit === '' || !dateofvisit) ? null : dateofvisit.replace('T', ' ');
-        nextvisit = (nextvisit === '' || !nextvisit) ? null : nextvisit.replace('T', ' ');
-        profession = profession || null;
-        designation = designation || null;
-        location = location || null;
-        notes = notes || null;
-        remarks = remarks || null;
-        contactflag = (contactflag === true || contactflag === 'true') ? true : false;
+        // Sanitize dates: If empty string, set to null
+        if (dateofvisit === '') dateofvisit = null;
+        if (nextvisit === '') nextvisit = null;
 
-        // Ensure createdby is a valid integer or null for database compatibility
-        if (createdby !== null && createdby !== undefined) {
-            const parsed = parseInt(createdby);
-            createdby = isNaN(parsed) ? null : parsed;
-        } else {
-            createdby = null;
+        // Sanitize Integers
+        if (distance === '' || distance === null) distance = 0;
+        if (createdby === '' || createdby === null) createdby = 0;
+
+        // Check if customer exists
+        let customer = await SalesModel.findByMobile(mobileno);
+
+        if (!customer) {
+            customer = await SalesModel.insertCustomer([name, mobileno, profession, designation, location, distance, notes, createdby, contactflag]);
         }
 
-        const customer = await SalesModel.insertCustomer([name, mobileno, profession, designation, location, distance, notes, createdby, contactflag]);
+        // Optionally update existing customer details if needed, but for now just use the ID
 
         let track;
         try {
@@ -35,12 +33,36 @@ class SalesService {
     }
 
     async saveSalesVisitTrack(data) {
-        let { custid, dateofvisit, nextvisit, remarks } = data;
+        let { custid, dateofvisit, nextvisit, remarks, record_type, createdby: reqCreatedBy } = data;
 
-        // Clean data for database compatibility
-        dateofvisit = (dateofvisit === '' || !dateofvisit) ? null : dateofvisit;
-        nextvisit = (nextvisit === '' || !nextvisit) ? null : nextvisit;
-        remarks = remarks || null;
+        // If it's a lead, promote it to a Sales Customer first
+        if (record_type === 'lead') {
+            const lead = await LeadModel.findPersonalById(custid);
+            if (!lead) {
+                throw new Error('Lead not found for promotion');
+            }
+
+            const fullName = (lead.firstname + ' ' + (lead.lastname || '')).trim();
+            const location = lead.presentaddress || 'Unknown';
+            const mobileno = lead.mobilenumber;
+            // Use passed createdby (from frontend) or fallback to lead's creator
+            const createdby = reqCreatedBy || lead.createdby || 0;
+
+            // Create Sales Customer
+            const newCustomer = await SalesModel.insertCustomer([
+                fullName,
+                mobileno,
+                'Unknown', // Profession
+                'Unknown', // Designation
+                location,
+                0, // Distance
+                'Promoted from Direct Meet Lead', // Notes
+                createdby, // CreatedBy
+                false // ContactFlag
+            ]);
+
+            custid = newCustomer.id; // Use the new ID
+        }
 
         return await SalesModel.insertTrack([custid, dateofvisit, nextvisit, remarks]);
     }
