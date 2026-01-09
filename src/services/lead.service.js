@@ -17,27 +17,7 @@ class LeadService {
         const mobilePart = (data.mobilenumber || "").slice(-4);
         const generatedPassword = `${firstnamePart}@${mobilePart}`;
 
-        const cleanMob = (data.mobilenumber || "").replace(/\D/g, '').slice(-10);
-        let currentRemarks = data.remarks || '';
-
-        // Check global verification status
-        if (cleanMob) {
-            try {
-                const { rows: statusRows } = await pool.query('SELECT status FROM whatsapp_verification_status WHERE mobilenumber = $1', [cleanMob]);
-                if (statusRows.length > 0) {
-                    const globalStatus = statusRows[0].status;
-                    if (globalStatus === 'Verified' && !currentRemarks.includes('[WhatsApp Verified]')) {
-                        currentRemarks = (currentRemarks.replace('[WhatsApp Requested]', '').replace('[Not on WhatsApp]', '').trim() + ' [WhatsApp Verified]').trim();
-                    } else if (globalStatus === 'Not on WhatsApp' && !currentRemarks.includes('[Not on WhatsApp]')) {
-                        currentRemarks = (currentRemarks.replace('[WhatsApp Requested]', '').replace('[WhatsApp Verified]', '').trim() + ' [Not on WhatsApp]').trim();
-                    } else if (globalStatus === 'Requested' && !currentRemarks.includes('[WhatsApp Requested]') && !currentRemarks.includes('[WhatsApp Verified]')) {
-                        currentRemarks = (currentRemarks + ' [WhatsApp Requested]').trim();
-                    }
-                }
-            } catch (err) {
-                console.error('Error checking global WhatsApp status in saveLeadPersonal:', err);
-            }
-        }
+        // Note: No side-effects for verification status here anymore.
 
         const values = [
             safeVal(data.firstname), safeVal(data.lastname), safeVal(data.mobilenumber), safeVal(data.locationid, 'int'),
@@ -46,7 +26,7 @@ class LeadService {
             safeVal(data.materialstatus), safeVal(data.noofdependent, 'int'), safeVal(data.educationalqualification),
             safeVal(data.type), safeVal(data.status, 'int'), safeVal(data.referencename), safeVal(data.organizationid, 'int'),
             safeVal(data.createdon), safeVal(data.connectorid, 'int'), safeVal(data.createdby), safeVal(data.productname),
-            safeVal(currentRemarks), safeVal(data.connectorcontactid, 'int'), safeVal(data.extcustomerid, 'int'), safeVal(data.contacttype),
+            safeVal(data.remarks), safeVal(data.connectorcontactid, 'int'), safeVal(data.extcustomerid, 'int'), safeVal(data.contacttype),
             safeVal(data.whatsappnumber),
         ];
 
@@ -109,31 +89,13 @@ class LeadService {
             'whatsappnumber'
         ];
         const pool = require('../db/index');
-        const cleanMob = (data.mobilenumber || "").replace(/\D/g, '').slice(-10);
+        // No checks for global status here anymore.
 
         const values = [];
         const sets = [];
         for (let i = 0; i < cols.length; i++) {
             const c = cols[i];
             let val = data[c];
-
-            // If updating remarks, or if updating mobile number, we might want to sync status
-            if (c === 'remarks' && cleanMob) {
-                try {
-                    const { rows: statusRows } = await pool.query('SELECT status FROM whatsapp_verification_status WHERE mobilenumber = $1', [cleanMob]);
-                    if (statusRows.length > 0) {
-                        const globalStatus = statusRows[0].status;
-                        const currentRem = val || '';
-                        if (globalStatus === 'Verified' && !currentRem.includes('[WhatsApp Verified]')) {
-                            val = (currentRem.replace('[WhatsApp Requested]', '').replace('[Not on WhatsApp]', '').trim() + ' [WhatsApp Verified]').trim();
-                        } else if (globalStatus === 'Not on WhatsApp' && !currentRem.includes('[Not on WhatsApp]')) {
-                            val = (currentRem.replace('[WhatsApp Requested]', '').replace('[WhatsApp Verified]', '').trim() + ' [Not on WhatsApp]').trim();
-                        }
-                    }
-                } catch (err) {
-                    console.error('Error checking global WhatsApp status in updateLeadPersonal:', err);
-                }
-            }
 
             // Sanitization: If date fields are invalid strings like "1", set to null
             if ((c === 'dateofbirth' || c === 'createdon') && val) {

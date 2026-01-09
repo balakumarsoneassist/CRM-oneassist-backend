@@ -122,7 +122,25 @@ class CustomerModel {
     }
 
     async getCustomerList() {
-        const { rows } = await pool.query("SELECT * FROM GetCustomerList()");
+        const query = `
+            SELECT 
+                c.id, 
+                c.name, 
+                c.bank as bank, 
+                c.product as product, 
+                c.disbursedvalue as loanamount, 
+                COALESCE(ltd.compcat, '') as companycategory, 
+                COALESCE(ltd.custsegment, '') as customersegment,
+                c.mobilenumber,
+                c.email,
+                c.createdon,
+                ltd.isdirectmeet,
+                ltd.appoinmentdate
+            FROM customers c
+            LEFT JOIN leadtrackdetails ltd ON c.leadid = ltd.leadid
+            ORDER BY c.createdon DESC
+        `;
+        const { rows } = await pool.query(query);
         return rows;
     }
 
@@ -145,7 +163,9 @@ class CustomerModel {
             COALESCE(ltd.custsegment, '') as customersegment,
             c.mobilenumber,
             c.email,
-            c.createdon
+            c.createdon,
+            ltd.isdirectmeet,
+            ltd.appoinmentdate
         FROM customers c
         LEFT JOIN leadtrackdetails ltd ON c.leadid = ltd.leadid
         WHERE 1=1`;

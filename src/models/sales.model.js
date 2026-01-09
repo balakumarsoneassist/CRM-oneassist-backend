@@ -96,9 +96,17 @@ class SalesModel {
         return rows;
     }
 
+    async findByMobile(mobileno) {
+        const { rows } = await pool.query(
+            "SELECT * FROM salesvisitcustomers WHERE mobileno = $1",
+            [mobileno]
+        );
+        return rows[0];
+    }
+
     // Alias
     async selectCustomerList(empid) {
-        return this.findCustomersByEmp(empid);
+        return this.findBasicCustomersByEmp(empid);
     }
 
     async findTrackByCust(custid) {
@@ -147,12 +155,64 @@ class SalesModel {
     }
 
     async findBasicCustomersByEmp(empid) {
+        console.log('🔍 Executing findBasicCustomersByEmp for EmpID:', empid);
         const { rows } = await pool.query(
-            `SELECT id, name, mobileno, location
-             FROM salesvisitcustomers
-             WHERE createdby = $1`,
+            `
+            SELECT 
+                s.id, 
+                s.name, 
+                s.mobileno, 
+                s.location, 
+                s.contactflag, 
+                (
+                    SELECT t.appoinmentdate 
+                    FROM leadpersonaldetails l 
+                    JOIN leadtrackdetails t ON l.id = t.leadid 
+                    WHERE TRIM(l.mobilenumber) = TRIM(s.mobileno)
+                    AND t.isdirectmeet = true 
+                    LIMIT 1
+                ) as appoinment_date,
+                (SELECT MAX(dateofvisit) FROM salesvisittrack WHERE custid = s.id) as lastvisit,
+                (SELECT COUNT(*) FROM salesvisittrack WHERE custid = s.id) as novisit,
+                'customer' as record_type
+            FROM salesvisitcustomers s
+            WHERE s.createdby = $1::integer AND s.contactflag = false
+
+            UNION ALL
+
+            SELECT 
+                l.id, 
+                (l.firstname || ' ' || COALESCE(l.lastname, '')) as name, 
+                l.mobilenumber as mobileno, 
+                l.presentaddress as location, 
+                false as contactflag, 
+                t.appoinmentdate as appoinment_date,
+                (
+                    SELECT MAX(st.dateofvisit) 
+                    FROM salesvisittrack st 
+                    JOIN salesvisitcustomers sc ON st.custid = sc.id 
+                    WHERE TRIM(sc.mobileno) = TRIM(l.mobilenumber)
+                ) as lastvisit,
+                (
+                    SELECT COUNT(*) 
+                    FROM salesvisittrack st 
+                    JOIN salesvisitcustomers sc ON st.custid = sc.id 
+                    WHERE TRIM(sc.mobileno) = TRIM(l.mobilenumber)
+                ) as novisit,
+                'lead' as record_type
+            FROM leadpersonaldetails l
+            JOIN leadtrackdetails t ON l.id = t.leadid
+            WHERE t.isdirectmeet = true 
+            AND t.contactfollowedby = $1::integer
+            AND TRIM(l.mobilenumber) NOT IN (SELECT TRIM(mobileno) FROM salesvisitcustomers WHERE createdby = $1::integer AND contactflag = false)
+            `,
             [empid]
         );
+        const nandha = rows.find(r => r.name && r.name.toLowerCase().includes('nandha'));
+        if (nandha) {
+            console.log('🔍 Debug Nandha Row:', JSON.stringify(nandha));
+        }
+        console.log('✅ findBasicCustomersByEmp result count:', rows.length);
         return rows;
     }
 

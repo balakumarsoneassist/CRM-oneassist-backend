@@ -2,63 +2,54 @@ const metricsModel = require("../models/metrics.model");
 const employeeModel = require("../models/employee.model");
 
 class MetricsService {
-    async getAllAchievementMetrics() {
-        const employees = await employeeModel.findAssignees(); // Reusing findAssignees if it filters for active
+    async getAllAchievementMetrics(params) {
+        const { page = 1, limit = 10, search = '', designation, sortBy, sortOrder } = params;
+        const offset = (page - 1) * limit;
 
-        const promises = employees.map(async (emp) => {
-            const target = await metricsModel.getTargetMetrics(emp.id);
-            const attendedCallsActual = await metricsModel.getAttendedCallsCount(emp.id);
-            const dynamicConverted = await metricsModel.getConvertedLeadsCount(emp.id);
-            const loginsActual = await metricsModel.getLoginsCount(emp.id);
-            const sanctionsActual = await metricsModel.getSanctionsCount(emp.id);
-            const disbursementActual = await metricsModel.getDisbursementValue(emp.id);
-
-            return {
-                id: emp.id,
-                name: emp.name,
-                designation: emp.designation,
-                image_data: emp.image_data,
-                logins_actual: loginsActual,
-                sanctions_actual: sanctionsActual,
-                disbursement_actual: disbursementActual,
-                attended_calls: attendedCallsActual,
-                converted_actual: dynamicConverted,
-                logins_target: parseInt(target.logins) || 0,
-                sanctions_target: parseInt(target.sanctions) || 0,
-                disbursement_target: parseInt(target.disbursement_volume) || 0,
-                attended_calls_target: parseInt(target.attended_calls_target) || 0,
-                converted_target: parseInt(target.converted_leads) || 0,
-                // Legacy keys
-                logins: parseInt(target.logins) || 0,
-                sanctions: parseInt(target.sanctions) || 0,
-                converted_leads: dynamicConverted
-            };
+        const allMetrics = await employeeModel.findPaginatedAssignees({
+            search, limit, offset, designation, sortBy, sortOrder
         });
 
-        const allMetrics = await Promise.all(promises);
+        const totalCount = await employeeModel.countAssignees({ search, designation });
 
-        // Calculate Totals for Admin View
+        // Calculate Totals for Admin View (Current Page Only, as per request scope)
+        // If strictly required across ALL pages, we'd need a separate aggregate query.
+        // For performance, we stick to current page totals for the 'Admin Dashboard' snapshot or implement a global sum later.
         const totals = allMetrics.reduce((acc, curr) => ({
-            logins_actual: acc.logins_actual + curr.logins_actual,
-            logins_target: acc.logins_target + curr.logins_target,
-            sanctions_actual: acc.sanctions_actual + curr.sanctions_actual,
-            sanctions_target: acc.sanctions_target + curr.sanctions_target,
-            disbursement_actual: acc.disbursement_actual + curr.disbursement_actual,
-            disbursement_target: acc.disbursement_target + curr.disbursement_target,
-            attended_calls: acc.attended_calls + curr.attended_calls,
-            attended_calls_target: acc.attended_calls_target + curr.attended_calls_target,
-            converted_actual: acc.converted_actual + curr.converted_actual,
-            converted_target: acc.converted_target + curr.converted_target
+            logins_actual: acc.logins_actual + (parseInt(curr.logins) || 0), // Note: alias in model is 'logins', not 'logins_actual'
+            logins_target: acc.logins_target + (parseInt(curr.logins_target) || 0),
+            sanctions_actual: acc.sanctions_actual + (parseInt(curr.sanctions) || 0),
+            sanctions_target: acc.sanctions_target + (parseInt(curr.sanctions_target) || 0),
+            disbursement_actual: acc.disbursement_actual + (parseFloat(curr.disbursement_volume) || 0),
+            disbursement_target: acc.disbursement_target + (parseInt(curr.disbursement_target) || 0),
+            attended_calls: acc.attended_calls + (parseInt(curr.attended_calls) || 0),
+            attended_calls_target: acc.attended_calls_target + (parseInt(curr.attended_calls_target) || 0),
+            converted_actual: acc.converted_actual + (parseInt(curr.converted_leads) || 0),
+            converted_target: acc.converted_target + (parseInt(curr.converted_target) || 0)
         }), {
             logins_actual: 0, logins_target: 0, sanctions_actual: 0, sanctions_target: 0,
             disbursement_actual: 0, disbursement_target: 0, attended_calls: 0, attended_calls_target: 0,
             converted_actual: 0, converted_target: 0
         });
 
+        // Map definitions to match frontend expected structure if necessary, or ensure frontend reads 'logins' vs 'logins_actual'
+        // The frontend 'allMetrics' usage reads: logins_actual, logins_target etc.
+        // The master query returns: 'logins', 'logins_target'.
+        // Let's normalize the output here to match what frontend expects.
+
+        const data = allMetrics.map(m => ({
+            ...m,
+            logins_actual: parseInt(m.logins) || 0,
+            sanctions_actual: parseInt(m.sanctions) || 0,
+            disbursement_actual: parseFloat(m.disbursement_volume) || 0,
+            converted_actual: parseInt(m.converted_leads) || 0,
+            attended_calls: parseInt(m.attended_calls) || 0
+        }));
+
         return {
-            data: allMetrics,
+            data,
             totals,
-            totalCount: allMetrics.length
+            totalCount
         };
     }
 

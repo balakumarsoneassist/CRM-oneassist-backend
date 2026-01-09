@@ -79,41 +79,6 @@ exports.handleWebhook = async (req, res) => {
                                         const cleanMob = recipientId.replace(/\D/g, '').slice(-10);
                                         console.log(`📢 Webhook Status Update: ${recipientId} (${cleanMob}) -> ${statusVal}`);
 
-                                        // Lookup lead by last 10 digits to update remarks if lead exists
-                                        const leads = await LeadService.getLeadPersonalList({ mobilenumber: cleanMob });
-
-                                        if (leads.data && leads.data.length > 0) {
-                                            for (const lead of leads.data) {
-                                                const currentRemarks = lead.remarks || '';
-                                                let newRemarks = currentRemarks;
-
-                                                if (statusVal === 'delivered' || statusVal === 'read') {
-                                                    if (!currentRemarks.includes('[WhatsApp Verified]')) {
-                                                        newRemarks = currentRemarks.replace('[WhatsApp Requested]', '').trim();
-                                                        newRemarks = (newRemarks.replace('[Not on WhatsApp]', '').trim() + ' [WhatsApp Verified]').trim();
-                                                        await LeadService.updateLeadPersonal(lead.id, {
-                                                            remarks: newRemarks
-                                                        });
-                                                        console.log(`✅ CRM UPDATED: Lead ${lead.id} (${lead.firstname}) -> Verified`);
-                                                    }
-                                                } else if (statusVal === 'failed' && status.errors) {
-                                                    const error = status.errors[0];
-                                                    if (error.code === 131026 || error.code === 131056) {
-                                                        if (!currentRemarks.includes('[Not on WhatsApp]')) {
-                                                            newRemarks = currentRemarks.replace('[WhatsApp Requested]', '').trim();
-                                                            newRemarks = (newRemarks.replace('[WhatsApp Verified]', '').trim() + ' [Not on WhatsApp]').trim();
-                                                            await LeadService.updateLeadPersonal(lead.id, {
-                                                                remarks: newRemarks
-                                                            });
-                                                            console.log(`⚠️ CRM UPDATED: Lead ${lead.id} (${lead.firstname}) -> Not on WhatsApp`);
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            console.warn(`⚠️ Webhook: No lead found in CRM for ${cleanMob}`);
-                                        }
-
                                         // ✅ ALWAYS update the independent status table
                                         let finalStatus = 'Pending';
                                         if (statusVal === 'delivered' || statusVal === 'read') finalStatus = 'Verified';
@@ -156,28 +121,23 @@ exports.sendVerification = async (req, res) => {
     try {
         console.log('Verification request for:', mobilenumber);
 
-        // ✅ IDEMPOTENCY GUARD: Check if already requested or verified
         const cleanMob = mobilenumber.replace(/\D/g, '').slice(-10);
-        console.log(`🔍 Searching lead by last 10 digits for idempotency: ${cleanMob}`);
-        const leads = await LeadService.getLeadPersonalList({ mobilenumber: cleanMob });
-        console.log(`📊 Idempotency search for ${cleanMob} found: ${leads.data ? leads.data.length : 0} leads`);
 
-        if (leads.data && leads.data.length > 0) {
-            const lead = leads.data[0];
-            const remarks = lead.remarks || '';
+        // ✅ CHECK STATUS IN TABLE
+        const { rows } = await pool.query('SELECT status FROM whatsapp_verification_status WHERE mobilenumber = $1', [cleanMob]);
+        const currentStatus = rows[0]?.status;
 
-            if (remarks.includes('[WhatsApp Verified]')) {
-                console.log(`ℹ️ Skipping Verification: Lead ${lead.firstname} is already Verified.`);
-                return res.json({ success: true, message: 'Number is already verified.', alreadyVerified: true });
-            }
-
-            if (remarks.includes('[WhatsApp Requested]')) {
-                console.log(`ℹ️ Skipping Verification: OTP was already sent for ${lead.firstname}.`);
-                return res.json({ success: true, message: 'Verification is already in progress.', alreadySent: true });
-            }
+        if (currentStatus === 'Verified') {
+            console.log(`ℹ️ Skipping Verification: Number ${mobilenumber} is already Verified.`);
+            return res.json({ success: true, message: 'Number is already verified.', alreadyVerified: true });
         }
 
-        // Initialize status as 'Requested' in the independent table
+        if (currentStatus === 'Requested') {
+            // Optional: allow re-sending if it's been a while? For now, simplistic check.
+            console.log(`ℹ️ Info: Verification already requested for ${mobilenumber}. Sending another OTP anyway.`);
+        }
+
+        // Initialize/Update status as 'Requested' in the independent table
         await updateWhatsAppVerificationStatus(mobilenumber, 'Requested');
 
         console.log('Sending NEW OTP verification to:', mobilenumber);
@@ -189,20 +149,6 @@ exports.sendVerification = async (req, res) => {
         // Use the proper sendOTP method defined in service, passing the OTP
         const result = await WhatsAppService.sendOTP(mobilenumber, otp);
         console.log('WhatsApp OTP Result:', result);
-
-        // ✅ ADD "Requested" TAG TO LEAD REMARKS
-        // Reuse lead object if we found it in the guard above
-        if (leads.data && leads.data.length > 0) {
-            const lead = leads.data[0];
-            const currentRemarks = lead.remarks || '';
-            if (!currentRemarks.includes('[WhatsApp Requested]') && !currentRemarks.includes('[WhatsApp Verified]')) {
-                const updatedRemarks = (currentRemarks + ' [WhatsApp Requested]').trim();
-                await LeadService.updateLeadPersonal(lead.id, {
-                    remarks: updatedRemarks
-                });
-                console.log(`📝 LEAD TAGGED: ${lead.firstname} -> [WhatsApp Requested]`);
-            }
-        }
 
         res.json({ success: true, message: 'OTP verification message sent', result, otp });
     } catch (error) {
@@ -223,18 +169,9 @@ exports.forceVerify = async (req, res) => {
         const cleanMob = mobile.replace(/\D/g, '').slice(-10);
         console.log(`\n🛠️ MANUAL FORCE VERIFY: ${cleanMob}`);
 
-        const leads = await LeadService.getLeadPersonalList({ mobilenumber: cleanMob });
-        if (leads.data && leads.data.length > 0) {
-            const lead = leads.data[0];
-            const currentRemarks = lead.remarks || '';
-            if (!currentRemarks.includes('[WhatsApp Verified]')) {
-                const updatedRemarks = (currentRemarks + ' [WhatsApp Verified]').trim();
-                await LeadService.updateLeadPersonal(lead.id, { remarks: updatedRemarks });
-                return res.send(`✅ SUCCESS: Lead "${lead.firstname}" is now manually verified.`);
-            }
-            return res.send(`ℹ️ INFO: Lead "${lead.firstname}" was already verified.`);
-        }
-        return res.status(404).send(`❌ ERROR: No lead found with mobile matching ${cleanMob}`);
+        await updateWhatsAppVerificationStatus(cleanMob, 'Verified', 'Manual Force Verify');
+        return res.send(`✅ SUCCESS: Number ${cleanMob} is now manually marked as Verified.`);
+
     } catch (error) {
         console.error('Force Verify Error:', error);
         res.status(500).send('Error: ' + error.message);
@@ -248,6 +185,20 @@ exports.sendTemplateMessage = async (req, res) => {
     }
 
     try {
+        const cleanMob = mobilenumber.replace(/\D/g, '').slice(-10);
+
+        // 1. Check Independent Status Table
+        const { rows } = await pool.query('SELECT status FROM whatsapp_verification_status WHERE mobilenumber = $1', [cleanMob]);
+        const dbStatus = rows[0]?.status;
+
+        console.log(`🔍 Verification Check for ${mobilenumber} (${cleanMob}):`);
+        console.log(`   - DB Status: ${dbStatus}`);
+
+        if (dbStatus !== 'Verified') {
+            console.warn(`⚠️ Blocked message to unverified number: ${mobilenumber}`);
+            return res.status(400).json({ error: 'Cannot send message: WhatsApp number is not verified.' });
+        }
+
         console.log(`Triggering template "${templateName}" to: ${mobilenumber}`);
         const result = await WhatsAppService.sendTemplateMessage(mobilenumber, templateName, 'en_US', components || []);
         res.json({ success: true, message: 'Template message sent', result });

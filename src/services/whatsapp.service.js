@@ -1,4 +1,5 @@
 const axios = require('axios');
+const pool = require('../db/index');
 
 class WhatsAppService {
     constructor() {
@@ -54,6 +55,25 @@ class WhatsAppService {
         try {
             // Clean the 'to' number - remove non-digits
             let cleanTo = to.replace(/\D/g, '');
+
+            // Verification Check (Centralized)
+            // Skip check only if template is 'verification' (OTP flow)
+            if (templateName !== 'verification') {
+                try {
+                    const checkMob = cleanTo.slice(-10); // Check based on last 10 digits
+                    const { rows } = await pool.query('SELECT status FROM whatsapp_verification_status WHERE mobilenumber = $1', [checkMob]);
+                    const dbStatus = rows[0]?.status;
+
+                    if (dbStatus !== 'Verified') {
+                        console.warn(`🛑 BLOCKED: Attempt to send "${templateName}" to unverified number: ${to} (Status: ${dbStatus})`);
+                        // Throwing error to stop execution
+                        throw new Error(`WhatsApp messaging blocked: Number ${to} is not verified.`);
+                    }
+                } catch (dbErr) {
+                    if (dbErr.message.includes('WhatsApp messaging blocked')) throw dbErr;
+                    console.error('⚠️ Verification check failed (DB error), proceeding with caution:', dbErr);
+                }
+            }
 
             // If the number doesn't start with a country code (91 in this case) and is 10 digits
             // or if it's just missing the country code, prepend it.
@@ -131,6 +151,21 @@ class WhatsAppService {
     async sendServiceMessage(to, text) {
         try {
             const cleanTo = to.replace(/\D/g, '');
+
+            try {
+                const checkMob = cleanTo.slice(-10);
+                const { rows } = await pool.query('SELECT status FROM whatsapp_verification_status WHERE mobilenumber = $1', [checkMob]);
+                const dbStatus = rows[0]?.status;
+
+                if (dbStatus !== 'Verified') {
+                    console.warn(`🛑 BLOCKED: Attempt to send Service Message to unverified number: ${to}`);
+                    throw new Error(`WhatsApp messaging blocked: Number ${to} is not verified.`);
+                }
+            } catch (dbErr) {
+                if (dbErr.message.includes('WhatsApp messaging blocked')) throw dbErr;
+                console.error('⚠️ Verification check failed (DB error), proceeding with caution:', dbErr);
+            }
+
             const response = await axios.post(this.baseUrl, {
                 messaging_product: 'whatsapp',
                 to: cleanTo,
