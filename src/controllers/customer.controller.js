@@ -47,6 +47,28 @@ class CustomerController {
         }
     }
 
+    async getTrackCustomers(req, res) {
+        try {
+            const { userId, orgId } = req.params;
+            const customers = await customerService.getTrackCustomers(userId, orgId);
+            res.status(200).json(customers);
+        } catch (error) {
+            console.error("Error fetching track customers:", error);
+            res.status(500).json({ error: "Failed to fetch track customers" });
+        }
+    }
+
+    async startTracking(req, res) {
+        try {
+            const { customerId, userId, orgId } = req.body;
+            await customerService.startTracking(customerId, userId, orgId);
+            res.status(200).json({ success: true, message: "Tracking started" });
+        } catch (error) {
+            console.error("Error starting tracking:", error);
+            res.status(500).json({ error: "Failed to start tracking" });
+        }
+    }
+
     // =========================
     // Leads
     // =========================
@@ -231,7 +253,7 @@ class CustomerController {
 
     async reassignCustomer(req, res) {
         try {
-            const { id } = req.params;
+            const id = req.params.id || req.body.customerId;
             if (!id) return res.status(400).json({ error: "Customer ID is required" });
 
             const result = await customerService.reassignToContact(id);

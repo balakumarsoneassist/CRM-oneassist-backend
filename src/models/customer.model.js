@@ -21,6 +21,89 @@ class CustomerModel {
     return rows;
   }
 
+  async getTrackCustomers(userid, orgid) {
+    const query = `
+            SELECT DISTINCT ON (c.id)
+                c.id, 
+                c.name, 
+                c.mobilenumber, 
+                c.email as emailid, 
+                c.location,
+                c.status,
+                c.product,
+                c.loandate,
+                c.bank,
+                c.disbursedvalue as loanamount,
+                TO_CHAR(c.createdon, 'YYYY-MM-DD') as created_date,
+                ltd.appoinmentdate as appointmentdate,
+                ltd.id as tracknumber
+            FROM customers c
+            LEFT JOIN leadtrackdetails ltd ON c.leadid = ltd.leadid
+            WHERE ltd.organizationid = $1
+            ORDER BY c.id, c.createdon DESC
+        `;
+    const { rows } = await pool.query(query, [orgid]);
+    return rows;
+  }
+
+  async startTracking(customerId, userId, orgId) {
+    // 1. Get customer details to find leadid
+    const { rows: custRows } = await pool.query("SELECT * FROM customers WHERE id = $1", [customerId]);
+    if (custRows.length === 0) throw new Error("Customer not found");
+    const customer = custRows[0];
+    let leadId = customer.leadid;
+
+    if (!leadId) {
+      // Check if a lead already exists with this mobile number
+      const { rows: existingLead } = await pool.query(
+        "SELECT id FROM leadpersonaldetails WHERE mobilenumber = $1",
+        [customer.mobilenumber]
+      );
+
+      if (existingLead.length > 0) {
+        leadId = existingLead[0].id;
+      } else {
+        // Create a new lead entry
+        const { rows: leadRows } = await pool.query(
+          `INSERT INTO leadpersonaldetails 
+                  (firstname, mobilenumber, email, presentaddress, createdby, createdon, organizationid, status, type, contacttype)
+                  VALUES ($1, $2, $3, $4, $5, NOW(), $6, 1, 'Customer', 'Customer')
+                  RETURNING id`,
+          [customer.name, customer.mobilenumber, customer.email, customer.location, userId, orgId]
+        );
+        leadId = leadRows[0].id;
+      }
+
+      // Update customer with new leadid
+      await pool.query("UPDATE customers SET leadid = $1 WHERE id = $2", [leadId, customerId]);
+    }
+
+    // 2. Check leadtrackdetails
+    const { rows: trackRows } = await pool.query("SELECT * FROM leadtrackdetails WHERE leadid = $1", [leadId]);
+
+    if (trackRows.length === 0) {
+      // Insert new track details
+      // Removed 'customer' and 'createdon' columns as they don't appear to exist in TrackModel definition
+      await pool.query(
+        `INSERT INTO leadtrackdetails 
+              (leadid, organizationid, contactfollowedby)
+              VALUES ($1, $2, $3)`,
+        [leadId, orgId, userId]
+      );
+    } else {
+      // Update existing track details
+      await pool.query(
+        "UPDATE leadtrackdetails SET contactfollowedby = $1, organizationid = $2 WHERE leadid = $3",
+        [userId, orgId, leadId]
+      );
+    }
+
+    // 3. Ensure customer has correct leadfollowedby
+    await pool.query("UPDATE customers SET leadfollowedby = $1 WHERE id = $2", [userId, customerId]);
+
+    return { success: true };
+  }
+
   async getTrackContacts(userid, orgid) {
     const { rows } = await pool.query(
       "SELECT * FROM GetTrackContactList($1, $2)",
@@ -136,16 +219,22 @@ class CustomerModel {
                 c.createdon,
                 ltd.isdirectmeet,
                 ltd.appoinmentdate,
-                e.name as converter,
-                e.name as following
+                creator.name as converter,
+                follower.name as following
             FROM customers c
             LEFT JOIN leadtrackdetails ltd ON c.leadid = ltd.leadid
-            LEFT JOIN employeedetails e ON c.leadfollowedby::text = e.id::text
+            LEFT JOIN leadpersonaldetails lpd ON c.leadid = lpd.id
+            LEFT JOIN employeedetails creator ON lpd.createdby::text = creator.id::text
+            LEFT JOIN employeedetails follower ON c.leadfollowedby::text = follower.id::text
         `;
     const values = [];
     if (followedBy) {
-      query += ` WHERE c.leadfollowedby::text = $1::text`;
+      // Show if assigned to user AND (Not tracked at all OR Tracked by someone else/not me)
+      query += ` WHERE c.leadfollowedby::text = $1::text AND (ltd.id IS NULL OR ltd.contactfollowedby::text IS DISTINCT FROM $1::text)`;
       values.push(followedBy);
+    } else {
+      // Admin View: Show ALL customers, do not filter by followed status.
+      // We removed the 'WHERE c.leadfollowedby IS NULL' restriction.
     }
     query += ` ORDER BY c.id DESC`;
     const { rows } = await pool.query(query, values);
@@ -402,7 +491,7 @@ class CustomerModel {
 
   async findLeadById(id) {
     const { rows } = await pool.query(
-      "SELECT firstname, mobilenumber, email FROM leadpersonaldetails WHERE id = $1",
+      "SELECT firstname, lastname, mobilenumber, email FROM leadpersonaldetails WHERE id = $1",
       [id]
     );
     return rows[0];
