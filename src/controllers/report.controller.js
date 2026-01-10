@@ -26,19 +26,35 @@ exports.getOverallStatus = async (req, res) => {
 
 exports.getLeadFollowAllStatusReport = async (req, res) => {
     const { orgid, statuscode } = req.query;
+    let { empid } = req.query;
+
     if (!orgid || !statuscode) return res.status(400).json({ error: 'Missing parameters' });
+
+    // Enforce: Non-admins can only see their own reports
+    if (!req.user?.isadminrights) {
+        empid = req.user?.id;
+    }
+
     try {
-        const data = await ReportService.getLeadFollowAllStatusReport(parseInt(orgid), parseInt(statuscode));
-        res.json({ success: true, data, parameters: { orgid: parseInt(orgid), statuscode: parseInt(statuscode) } });
+        const data = await ReportService.getLeadFollowAllStatusReport(parseInt(orgid), parseInt(statuscode), empid);
+        res.json({ success: true, data, parameters: { orgid: parseInt(orgid), statuscode: parseInt(statuscode), empid } });
     } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 };
 
 exports.getContactFollowAllStatusReport = async (req, res) => {
     const { orgid, statuscode } = req.query;
+    let { empid } = req.query;
+
     if (!orgid || !statuscode) return res.status(400).json({ error: 'Missing parameters' });
+
+    // Enforce: Non-admins can only see their own reports
+    if (!req.user?.isadminrights) {
+        empid = req.user?.id;
+    }
+
     try {
-        const data = await ReportService.getContactFollowAllStatusReport(parseInt(orgid), parseInt(statuscode));
-        res.json({ success: true, data, parameters: { orgid: parseInt(orgid), statuscode: parseInt(statuscode) } });
+        const data = await ReportService.getContactFollowAllStatusReport(parseInt(orgid), parseInt(statuscode), empid);
+        res.json({ success: true, data, parameters: { orgid: parseInt(orgid), statuscode: parseInt(statuscode), empid } });
     } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 };
 
