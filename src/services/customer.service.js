@@ -8,9 +8,18 @@ class CustomerService {
         const lead = await CustomerModel.findLeadById(leadid);
         if (!lead) throw new Error('Lead not found');
 
+        // name and mobilenumber from input or lead details
+        let finalName = name;
+        if (!finalName && lead) {
+            finalName = lead.firstname;
+            if (lead.lastname) finalName += ' ' + lead.lastname;
+        }
+
+        const finalMobile = mobilenumber || (lead ? lead.mobilenumber : '');
+
         // Using Lead data logic from original
         const inserted = await CustomerModel.insertCustomer([
-            lead.firstname, loandate, location, lead.mobilenumber, product, lead.email, status, bank, disbursedvalue, profile, remarks, notes, newstatus, leadid, leadfollowedby
+            finalName, loandate, location, finalMobile, product, lead.email, status, bank, disbursedvalue, profile, remarks, notes, newstatus, leadid, leadfollowedby
         ]);
 
         await CustomerModel.updateLeadTrackFlag(leadid);
@@ -24,6 +33,14 @@ class CustomerService {
 
     async getCustomerList(followedBy = null) {
         return await CustomerModel.getCustomerList(followedBy);
+    }
+
+    async getTrackCustomers(userId, orgId) {
+        return await CustomerModel.getTrackCustomers(userId, orgId);
+    }
+
+    async startTracking(customerId, userId, orgId) {
+        return await CustomerModel.startTracking(customerId, userId, orgId);
     }
 
     async getAllCustomers(filters) {
@@ -165,28 +182,25 @@ class CustomerService {
 
         // Only update Lead tables if we actually have a Lead ID
         if (leadid) {
-            // B. Update/Create Track
-            const { rows: trackExists } = await pool.query(
-                "SELECT 1 FROM leadtrackdetails WHERE leadid = $1", [leadid]
+            // Delete track details so it disappears from the current owner's track list
+            // It will reappear in the new owner's customer list for explicit "Follow Up"
+            await pool.query(
+                "DELETE FROM leadtrackdetails WHERE leadid = $1",
+                [leadid]
             );
 
-            if (trackExists.length > 0) {
-                await pool.query(
-                    "UPDATE leadtrackdetails SET customer = true, leadfollowedby = $2, status = 2 WHERE leadid = $1",
-                    [leadid, empid.toString()]
-                );
-            } else {
-                await pool.query(
-                    "INSERT INTO leadtrackdetails (leadid, organizationid, customer, status, leadfollowedby, modifyon) VALUES ($1, $2, true, 2, $3, NOW())",
-                    [leadid, orgid, empid.toString()]
-                );
-            }
+            // C. Update Lead Personal Details - Commented to leave as-is or uncomment if update needed?
+            // Actually, if we delete track details, we might want to reset personal details status?
+            // But user only asked to "remove action in following".
+            // Let's assume removing from tracking is sufficient.
 
+            /*
             // C. Update Lead Personal Details
             await pool.query(
                 "UPDATE leadpersonaldetails SET status = 2, type = 'Customer', contacttype = 'Customer' WHERE id = $1",
                 [leadid]
             );
+            */
         }
 
         // D. Insert into Timeline
