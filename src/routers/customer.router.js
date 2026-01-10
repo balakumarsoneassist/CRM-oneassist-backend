@@ -30,5 +30,7 @@ router.use(verifyToken);
 
 // Customers & Loans
 router.get("/getcustomerlist", customerController.getCustomerList);
+router.get("/trackcustomers/:userId/:orgId", customerController.getTrackCustomers);
+router.post("/start-tracking", customerController.startTracking);
 
 module.exports = router;
