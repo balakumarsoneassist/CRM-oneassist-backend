@@ -5,7 +5,7 @@ class ReportModel {
         if (empid) {
             // Raw SQL fallback since OverallStatusByEmp function is missing
             // Debug: Check if any tracks exist for this user
-            const debugTrackQuery = `SELECT count(*) FROM leadtrackdetails WHERE contactfollowedby = $1`;
+            const debugTrackQuery = `SELECT count(*) FROM leadtrackdetails WHERE contactfollowedby = $1 OR leadfollowedby = $1`;
             const { rows: debugTrackRows } = await pool.query(debugTrackQuery, [empid]);
             console.log(`DEBUG: Found ${debugTrackRows[0].count} tracks for user ${empid} in leadtrackdetails`);
 
@@ -17,7 +17,7 @@ class ReportModel {
                 FROM leadpersonaldetails l
                 JOIN leadtrackdetails t ON l.id = t.leadid
                 JOIN statuscode s ON l.status = s.id
-                WHERE l.organizationid = $1 AND t.contactfollowedby = $2
+                WHERE l.organizationid = $1 AND (t.contactfollowedby = $2 OR t.leadfollowedby = $2)
                 GROUP BY s.id, s.status, l.contacttype
             `;
             const { rows } = await pool.query(query, [orgid, empid]);
@@ -39,7 +39,15 @@ class ReportModel {
         return rows;
     }
 
-    async selectLeadFollowAllStatus(orgid, statuscode) {
+    async selectLeadFollowAllStatus(orgid, statuscode, empid = null) {
+        let whereClause = `WHERE l.organizationid = $1 AND t.status = $2`;
+        const params = [orgid, statuscode];
+
+        if (empid) {
+            whereClause += ` AND (t.contactfollowedby = $3 OR t.leadfollowedby = $3)`;
+            params.push(empid);
+        }
+
         const query = `
             SELECT 
                 l.id,
@@ -58,15 +66,23 @@ class ReportModel {
             FROM leadpersonaldetails l
             JOIN leadtrackdetails t ON l.id = t.leadid
             JOIN statuscode s ON t.status = s.id
-            LEFT JOIN employeedetails e ON t.leadfollowedby = e.id
-            WHERE l.organizationid = $1 AND t.status = $2
+            LEFT JOIN employeedetails e ON (CASE WHEN t.leadfollowedby > 0 THEN t.leadfollowedby ELSE t.contactfollowedby END) = e.id
+            ${whereClause}
             ORDER BY t.modifyon DESC
         `;
-        const { rows } = await pool.query(query, [orgid, statuscode]);
+        const { rows } = await pool.query(query, params);
         return rows;
     }
 
-    async selectContactFollowAllStatus(orgid, statuscode) {
+    async selectContactFollowAllStatus(orgid, statuscode, empid = null) {
+        let whereClause = `WHERE l.organizationid = $1 AND t.status = $2`;
+        const params = [orgid, statuscode];
+
+        if (empid) {
+            whereClause += ` AND (t.contactfollowedby = $3 OR t.leadfollowedby = $3)`;
+            params.push(empid);
+        }
+
         const query = `
             SELECT 
                 l.id,
@@ -85,11 +101,11 @@ class ReportModel {
             FROM leadpersonaldetails l
             JOIN leadtrackdetails t ON l.id = t.leadid
             JOIN statuscode s ON t.status = s.id
-            LEFT JOIN employeedetails e ON t.contactfollowedby = e.id
-            WHERE l.organizationid = $1 AND t.status = $2
+            LEFT JOIN employeedetails e ON (CASE WHEN t.contactfollowedby > 0 THEN t.contactfollowedby ELSE t.leadfollowedby END) = e.id
+            ${whereClause}
             ORDER BY t.modifyon DESC
         `;
-        const { rows } = await pool.query(query, [orgid, statuscode]);
+        const { rows } = await pool.query(query, params);
         return rows;
     }
 
@@ -164,9 +180,9 @@ class ReportModel {
                 t.id
             FROM leadtrackhistorydetails t
             JOIN leadpersonaldetails l ON t.leadid = l.id
-            LEFT JOIN employeedetails e ON t.contactfollowedby = e.id
+            LEFT JOIN employeedetails e ON (CASE WHEN t.contactfollowedby > 0 THEN t.contactfollowedby ELSE t.leadfollowedby END) = e.id
             LEFT JOIN statuscode s ON t.status = s.id
-            WHERE t.contactfollowedby = $1
+            WHERE (t.contactfollowedby = $1 OR t.leadfollowedby = $1)
               AND t.createon::date >= $2
               AND t.createon::date <= $3
             ORDER BY t.createon DESC
@@ -184,7 +200,7 @@ class ReportModel {
             FROM leadpersonaldetails l
             JOIN leadtrackdetails t ON l.id = t.leadid
             JOIN statuscode s ON t.status = s.id
-            WHERE t.contactfollowedby = $1
+            WHERE (t.contactfollowedby = $1 OR t.leadfollowedby = $1)
             GROUP BY s.id, s.status
             ORDER BY s.id
         `;

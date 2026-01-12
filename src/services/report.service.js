@@ -5,12 +5,12 @@ class ReportService {
         return await ReportModel.selectOverallStatus(orgid, empid);
     }
 
-    async getLeadFollowAllStatusReport(orgid, statuscode) {
-        return await ReportModel.selectLeadFollowAllStatus(orgid, statuscode);
+    async getLeadFollowAllStatusReport(orgid, statuscode, empid) {
+        return await ReportModel.selectLeadFollowAllStatus(orgid, statuscode, empid);
     }
 
-    async getContactFollowAllStatusReport(orgid, statuscode) {
-        return await ReportModel.selectContactFollowAllStatus(orgid, statuscode);
+    async getContactFollowAllStatusReport(orgid, statuscode, empid) {
+        return await ReportModel.selectContactFollowAllStatus(orgid, statuscode, empid);
     }
 
     async getLCFollowEmpStatusReport(orgid, statuscode, empid) {
