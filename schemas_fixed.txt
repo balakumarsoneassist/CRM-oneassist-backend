@@ -1,0 +1,80 @@
+Table: custservicecalltrack
+[
+  {
+    "column_name": "id",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "extcustid",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "nextcall",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "column_name": "remarks",
+    "data_type": "text"
+  },
+  {
+    "column_name": "calledon",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "column_name": "calledby",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "callattend",
+    "data_type": "integer"
+  }
+]
+
+Table: customertrackhistorydetails
+[
+  {
+    "column_name": "id",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "tracknumber",
+    "data_type": "text"
+  },
+  {
+    "column_name": "customerid",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "appoinmentdate",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "column_name": "status",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "notes",
+    "data_type": "text"
+  },
+  {
+    "column_name": "isdirectmeet",
+    "data_type": "boolean"
+  },
+  {
+    "column_name": "contactfollowedby",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "isnoresponse",
+    "data_type": "boolean"
+  },
+  {
+    "column_name": "organizationid",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "createdon",
+    "data_type": "timestamp with time zone"
+  }
+]
+

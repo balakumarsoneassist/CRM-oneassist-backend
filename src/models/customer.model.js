@@ -235,6 +235,8 @@ class CustomerModel {
     } else {
       // Admin View: Show ALL customers, do not filter by followed status.
       // We removed the 'WHERE c.leadfollowedby IS NULL' restriction.
+      // Exclude customers who are already being followed/tracked
+      query += ` WHERE c.leadfollowedby IS NULL`;
     }
     query += ` ORDER BY c.id DESC`;
     const { rows } = await pool.query(query, values);
