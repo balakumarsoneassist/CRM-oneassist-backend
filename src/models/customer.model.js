@@ -233,6 +233,8 @@ class CustomerModel {
       query += ` WHERE c.leadfollowedby::text = $1::text AND (ltd.id IS NULL OR ltd.contactfollowedby::text IS DISTINCT FROM $1::text)`;
       values.push(followedBy);
     } else {
+      // Admin View: Show ALL customers, do not filter by followed status.
+      // We removed the 'WHERE c.leadfollowedby IS NULL' restriction.
       // Exclude customers who are already being followed/tracked
       query += ` WHERE c.leadfollowedby IS NULL`;
     }

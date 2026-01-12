@@ -253,7 +253,7 @@ class CustomerController {
 
     async reassignCustomer(req, res) {
         try {
-            const { id } = req.params;
+            const id = req.params.id || req.body.customerId;
             if (!id) return res.status(400).json({ error: "Customer ID is required" });
 
             const result = await customerService.reassignToContact(id);
