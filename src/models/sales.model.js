@@ -176,8 +176,12 @@ class SalesModel {
 
   async findBasicCustomersByEmp(empid) {
     console.log("🔍 Executing findBasicCustomersByEmp for EmpID:", empid);
-    const { rows } = await pool.query(
-      `
+
+    // If empid is 'admin', we fetch ALL pending requests regardless of assignment
+    const isAdmin = (empid === 'admin');
+    const numericEmpId = !isAdmin && empid && !isNaN(parseInt(empid)) ? parseInt(empid) : null;
+
+    let query = `
             SELECT 
                 s.id, 
                 s.name, 
@@ -190,13 +194,24 @@ class SalesModel {
                     JOIN leadtrackdetails t ON l.id = t.leadid 
                     WHERE TRIM(l.mobilenumber) = TRIM(s.mobileno)
                     AND t.isdirectmeet = true 
+                    AND (t.approval_status IS NULL OR t.approval_status = 'Pending')
                     LIMIT 1
                 ) as appoinment_date,
+                (
+                    SELECT t.tracknumber 
+                    FROM leadpersonaldetails l 
+                    JOIN leadtrackdetails t ON l.id = t.leadid 
+                    WHERE TRIM(l.mobilenumber) = TRIM(s.mobileno)
+                    AND t.isdirectmeet = true 
+                    AND (t.approval_status IS NULL OR t.approval_status = 'Pending')
+                    LIMIT 1
+                ) as tracknumber,
                 (SELECT MAX(dateofvisit) FROM salesvisittrack WHERE custid = s.id) as lastvisit,
                 (SELECT COUNT(*) FROM salesvisittrack WHERE custid = s.id) as novisit,
                 'customer' as record_type
             FROM salesvisitcustomers s
-            WHERE s.createdby = $1::integer AND s.contactflag = false
+            WHERE s.contactflag = false
+            ${!isAdmin ? 'AND s.createdby = $1::integer' : ''}
 
             UNION ALL
 
@@ -207,6 +222,7 @@ class SalesModel {
                 l.presentaddress as location, 
                 false as contactflag, 
                 t.appoinmentdate as appoinment_date,
+                t.tracknumber as tracknumber,
                 (
                     SELECT MAX(st.dateofvisit) 
                     FROM salesvisittrack st 
@@ -223,11 +239,18 @@ class SalesModel {
             FROM leadpersonaldetails l
             JOIN leadtrackdetails t ON l.id = t.leadid
             WHERE t.isdirectmeet = true 
-            AND t.contactfollowedby = $1::integer
-            AND TRIM(l.mobilenumber) NOT IN (SELECT TRIM(mobileno) FROM salesvisitcustomers WHERE createdby = $1::integer AND contactflag = false)
-            `,
-      [empid]
-    );
+            AND (t.approval_status IS NULL OR t.approval_status = 'Pending')
+            AND TRIM(l.mobilenumber) NOT IN (SELECT TRIM(mobileno) FROM salesvisitcustomers WHERE contactflag = false ${!isAdmin ? 'AND createdby = $1::integer' : ''})
+            ${!isAdmin ? 'AND t.contactfollowedby = $1::integer' : ''}
+    `;
+
+    const params = !isAdmin ? [numericEmpId] : [];
+
+    // Add logic to exclude items that are already approved/rejected (handled by approval_status filter above)
+    // Add logic to filter by employee if not admin (handled by contactfollowedby/createdby above)
+
+    const { rows } = await pool.query(query, params);
+
     const nandha = rows.find(
       (r) => r.name && r.name.toLowerCase().includes("nandha")
     );

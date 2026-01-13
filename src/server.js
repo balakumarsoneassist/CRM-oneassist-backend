@@ -1,4 +1,5 @@
-const result = require('dotenv').config();
+const path = require('path');
+const result = require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 if (result.error) {
     console.error('❌ Dotenv Error:', result.error);
 } else {
@@ -6,9 +7,6 @@ if (result.error) {
 }
 const app = require('./app');
 
-console.log('\n*****************************************');
-console.log('🚀 CRM BACKEND STARTING - DEC 31 17:23');
-console.log('*****************************************\n');
 
 // Port
 const PORT = process.env.PORT || 3000;

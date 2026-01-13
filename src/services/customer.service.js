@@ -1,8 +1,8 @@
 const CustomerModel = require('../models/customer.model');
 
 class CustomerService {
-    async createCustomer(data) {
-        const { loandate, location, mobilenumber, product, email, status, bank, disbursedvalue, profile, remarks, notes, newstatus, leadid, leadfollowedby } = data;
+    async createCustomer(data, userId) {
+        const { name, loandate, location, mobilenumber, product, email, status, bank, disbursedvalue, profile, remarks, notes, newstatus, leadid, leadfollowedby } = data;
 
         // First, finding lead
         const lead = await CustomerModel.findLeadById(leadid);
@@ -16,6 +16,12 @@ class CustomerService {
         }
 
         const finalMobile = mobilenumber || (lead ? lead.mobilenumber : '');
+
+        // Update Lead Creator to reflect the Admin/User performing the conversion
+        // This ensures the "Converter" field shows the correct person
+        if (userId) {
+            await CustomerModel.updateLeadCreator(leadid, userId);
+        }
 
         // Using Lead data logic from original
         const inserted = await CustomerModel.insertCustomer([
@@ -31,12 +37,19 @@ class CustomerService {
         return await CustomerModel.selectTodayAppointment(empid);
     }
 
-    async getCustomerList(followedBy = null) {
-        return await CustomerModel.getCustomerList(followedBy);
+    async getCustomerList(followedBy = null, filterType = 'new', page = 1, limit = 50, products = null) {
+        const [data, count] = await Promise.all([
+            CustomerModel.getCustomerList(followedBy, filterType, page, limit, products),
+            CustomerModel.getCustomerListCount(followedBy, filterType, products)
+        ]);
+        return { data, count };
     }
 
-    async getTrackCustomers(userId, orgId) {
-        return await CustomerModel.getTrackCustomers(userId, orgId);
+
+
+
+    async getTrackCustomers(userId, orgId, filterType = 'new') {
+        return await CustomerModel.getTrackCustomers(userId, orgId, filterType);
     }
 
     async startTracking(customerId, userId, orgId) {
@@ -176,7 +189,7 @@ class CustomerService {
         // A. Update Customer Table
         // If we found a lead link (restored), we update it. If not, we keep it as is (null).
         await pool.query(
-            "UPDATE customers SET leadid = $1, leadfollowedby = $2 WHERE id = $3",
+            "UPDATE customers SET leadid = $1, leadfollowedby = $2, is_tracked = FALSE WHERE id = $3",
             [leadid || customer.leadid, empid, customerId]
         );
 

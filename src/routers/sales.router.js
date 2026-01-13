@@ -10,5 +10,7 @@ router.get('/getsvcustlist/:custid', salesController.getSVCustListByCustId);
 router.put('/updatesvcustomer/:id', salesController.updateSVCustomer);
 router.get('/svallcustomers', salesController.getSVAllCustomers);
 router.get('/svcustomersbyemp/:empid', salesController.getSVCustomersByEmp);
+router.post('/approvefollowup', salesController.approveFollowUp);
+router.post('/rejectfollowup', salesController.rejectFollowUp);
 
 module.exports = router;

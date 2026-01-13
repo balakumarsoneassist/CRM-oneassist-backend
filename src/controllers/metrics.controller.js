@@ -12,8 +12,13 @@ class MetricsController {
             const sortOrder = req.query.sortOrder || 'asc';
 
 
+            const month = req.query.month ? parseInt(req.query.month) : null;
+            const year = req.query.year ? parseInt(req.query.year) : null;
+            const viewType = (req.query.viewType === 'yearly') ? 'yearly' : 'monthly';
+
             const result = await metricsService.getAllAchievementMetrics({
-                page, limit, search, designation: req.query.designation, sortBy, sortOrder
+                page, limit, search, designation: req.query.designation, sortBy, sortOrder,
+                month, year, viewType
             });
             res.json({
                 success: true,

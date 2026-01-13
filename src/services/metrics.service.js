@@ -3,11 +3,11 @@ const employeeModel = require("../models/employee.model");
 
 class MetricsService {
     async getAllAchievementMetrics(params) {
-        const { page = 1, limit = 10, search = '', designation, sortBy, sortOrder } = params;
+        const { page = 1, limit = 10, search = '', designation, sortBy, sortOrder, month, year, viewType } = params;
         const offset = (page - 1) * limit;
 
         const allMetrics = await employeeModel.findPaginatedAssignees({
-            search, limit, offset, designation, sortBy, sortOrder
+            search, limit, offset, designation, sortBy, sortOrder, month, year, viewType
         });
 
         const totalCount = await employeeModel.countAssignees({ search, designation });

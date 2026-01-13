@@ -178,7 +178,18 @@ exports.getSVAllCustomers = async (req, res) => {
 // Get Sales Visit Customers by Employee
 // =========================
 exports.getSVCustomersByEmp = async (req, res) => {
-    const { empid } = req.params;
+    let { empid } = req.params;
+
+    // Check if user is admin (this logic depends on how you pass user info, here generic check)
+    // If you want to use req.user from middleware:
+    /*
+    if (req.user && (req.user.isadminrights === true || req.user.isadminrights === 'true')) {
+        empid = 'admin';
+    }
+    */
+    // For now, let's assume the frontend passes 'admin' if the user is an admin
+    // OR we can check it here if we have middleware.
+    // Based on requirements: "Admins should see and manage all employees' follow-ups"
 
     if (!empid) {
         return res.status(400).json({ error: 'empid required' });
@@ -194,6 +205,58 @@ exports.getSVCustomersByEmp = async (req, res) => {
         });
     } catch (err) {
         console.error(err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+// =========================
+// Approve Follow Up
+// =========================
+exports.approveFollowUp = async (req, res) => {
+    const { tracknumber } = req.body;
+
+    if (!tracknumber) {
+        return res.status(400).json({ error: 'tracknumber required' });
+    }
+
+    try {
+        // Use TrackModel directly or via SalesService if preferred
+        // Importing TrackModel here for direct access as it's a specific track action
+        const TrackModel = require('../models/track.model');
+        const result = await TrackModel.updateApprovalStatus(tracknumber, 'Approved');
+
+        res.json({
+            success: true,
+            message: 'Follow-up approved successfully',
+            data: result
+        });
+    } catch (err) {
+        console.error("Error in approveFollowUp:", err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+// =========================
+// Reject Follow Up
+// =========================
+exports.rejectFollowUp = async (req, res) => {
+    const { tracknumber } = req.body;
+
+    if (!tracknumber) {
+        return res.status(400).json({ error: 'tracknumber required' });
+    }
+
+    try {
+        const TrackModel = require('../models/track.model');
+        const result = await TrackModel.updateApprovalStatus(tracknumber, 'Rejected');
+
+        res.json({
+            success: true,
+            message: 'Follow-up rejected successfully',
+            data: result
+        });
+    } catch (err) {
+        console.error("Error in rejectFollowUp:", err);
         res.status(500).json({ error: 'Internal server error' });
     }
 };
