@@ -91,25 +91,25 @@ class EmployeeModel {
                             CASE
                                 WHEN LOWER(c.product) ILIKE '%personal loan%' OR LOWER(c.product) = 'pl' THEN
                                     CASE 
-                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.02
+                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact', 'customer') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.02
                                         WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.01
                                         ELSE 0 
                                     END
                                 WHEN LOWER(c.product) ILIKE '%business loan%' OR LOWER(c.product) = 'bl' THEN
                                     CASE 
-                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.02
+                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact', 'customer') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.02
                                         WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.01
                                         ELSE 0 
                                     END
                                 WHEN LOWER(c.product) ILIKE '%home loan%' OR LOWER(c.product) = 'hl' THEN
                                     CASE 
-                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.005
+                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact', 'customer') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.005
                                         WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.003
                                         ELSE 0 
                                     END
                                 WHEN LOWER(c.product) ILIKE '%loan against property%' OR LOWER(c.product) = 'lap' THEN
                                     CASE
-                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.007
+                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact', 'customer') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.007
                                         WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.004
                                         ELSE 0
                                     END
@@ -189,28 +189,28 @@ class EmployeeModel {
                                 -- PL Logic
                                 WHEN LOWER(c.product) ILIKE '%personal loan%' OR LOWER(c.product) = 'pl' THEN
                                     CASE 
-                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.02
+                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact', 'customer') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.02
                                         WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.01
                                         ELSE 0 
                                     END
                                 -- BL Logic
                                 WHEN LOWER(c.product) ILIKE '%business loan%' OR LOWER(c.product) = 'bl' THEN
                                     CASE 
-                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.02
+                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact', 'customer') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.02
                                         WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.01
                                         ELSE 0 
                                     END
                                 -- HL Logic
                                 WHEN LOWER(c.product) ILIKE '%home loan%' OR LOWER(c.product) = 'hl' THEN
                                     CASE 
-                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.005
+                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact', 'customer') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.005
                                         WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.003
                                         ELSE 0 
                                     END
                                 -- LAP Logic
                                 WHEN LOWER(c.product) ILIKE '%loan against property%' OR LOWER(c.product) = 'lap' THEN
                                     CASE
-                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.007
+                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact', 'customer') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.007
                                         WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.004
                                         ELSE 0
                                     END
