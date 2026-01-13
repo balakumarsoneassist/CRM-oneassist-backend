@@ -1,5 +1,19 @@
-require("dotenv").config();
 const { Pool } = require('pg');
+
+const requiredEnvVars = ['DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
+const missingVars = requiredEnvVars.filter(key => !process.env[key]);
+
+if (missingVars.length > 0) {
+    console.error(`❌ CRITICAL ERROR: Missing required database environment variables: ${missingVars.join(', ')}`);
+    console.error('Please check your .env file or server environment configuration.');
+    process.exit(1);
+}
+
+// Explicitly ensure password is treated as a string to avoid SASL error
+if (typeof process.env.DB_PASSWORD !== 'string') {
+    console.error('❌ CRITICAL ERROR: DB_PASSWORD must be a string.');
+    process.exit(1);
+}
 
 const pool = new Pool({
     host: process.env.DB_HOST,
