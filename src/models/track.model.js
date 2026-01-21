@@ -1,4 +1,4 @@
-const pool = require("../db/pool");
+const pool = require("../db/index");
 
 class TrackModel {
     async createHistory(data) {
@@ -24,8 +24,13 @@ class TrackModel {
             "islegal", "istechnical", "legalreport", "technicalreport", "ispsdconditionverified",
             "modifyon", "contactfollowedby", "leadfollowedby", "isnoresponse", "organizationid",
             "payoutpercent", "ispaid", "connectorcontactid", "disbursementamount", "customername",
-            "datastrength", "compname", "compcat", "custsegment"
+            "datastrength", "compname", "compcat", "custsegment", "approval_status"
         ];
+
+        // Ensure approval_status is set to Pending if not provided
+        if (!data.approval_status) {
+            data.approval_status = 'Pending';
+        }
 
         const placeholders = fields.map((_, idx) => `$${idx + 1}`).join(", ");
         const values = fields.map(col => data[col] !== undefined ? data[col] : null);
@@ -40,13 +45,39 @@ class TrackModel {
         return rows[0];
     }
 
-    async findHistoryByTrack(tracknumber) {
+    async updateApprovalStatus(tracknumber, status) {
         const { rows } = await pool.query(
-            `SELECT lp.leadid, lp.createon, lp.notes, lp.appoinmentdate, s.status, lp.contactfollowedby, lp.tracknumber
-       FROM leadtrackhistorydetails lp
-       JOIN statuscode s ON lp.status = s.id
-       WHERE lp.tracknumber = $1 ORDER BY lp.createon DESC`, [tracknumber]
+            "UPDATE leadtrackdetails SET approval_status = $1 WHERE tracknumber = $2 RETURNING *",
+            [status, tracknumber]
         );
+        return rows[0];
+    }
+
+    async findHistoryByTrack(tracknumber) {
+        // Resolve leadid from tracknumber or id to ensure we get all history for the lead
+        const { rows: leadRows } = await pool.query(
+            "SELECT leadid FROM leadtrackdetails WHERE tracknumber = $1 OR CAST(id AS VARCHAR) = $1 LIMIT 1",
+            [tracknumber]
+        );
+
+        let query = `
+            SELECT lp.leadid, lp.createon, lp.notes, lp.appoinmentdate, s.status, lp.contactfollowedby, lp.tracknumber, lp.isdirectmeet, e.name as employee_name
+            FROM leadtrackhistorydetails lp
+            JOIN statuscode s ON lp.status = s.id
+            LEFT JOIN employeedetails e ON lp.contactfollowedby = e.id
+            WHERE lp.tracknumber = $1
+        `;
+        const params = [tracknumber];
+
+        // If we found a leadid, include history matched by leadid as well
+        if (leadRows.length > 0 && leadRows[0].leadid) {
+            query += ` OR lp.leadid = $2`;
+            params.push(leadRows[0].leadid);
+        }
+
+        query += ` ORDER BY lp.createon DESC`;
+
+        const { rows } = await pool.query(query, params);
         return rows;
     }
 

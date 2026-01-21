@@ -31,9 +31,11 @@ router.use(verifyToken);
 // Customers & Loans
 router.get("/getcustomerlist", customerController.getCustomerList);
 router.get("/trackcustomers/:userId/:orgId", customerController.getTrackCustomers);
+
 router.post("/start-tracking", customerController.startTracking);
 router.post("/reassign-to-employee", customerController.reassignToEmployee);
 router.get("/:id/timeline", customerController.getTimeline);
+router.get("/track/history/:tracknumber", customerController.getTrackHistory);
 
 // Fix for convert-to-contact mismatch (Frontend POSTs to this, Controller expects ID)
 // Using a new wrapper or modifying controller. For now routing to reassignCustomer but note mismatch

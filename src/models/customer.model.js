@@ -21,7 +21,30 @@ class CustomerModel {
     return rows;
   }
 
-  async getTrackCustomers(userid, orgid) {
+
+
+  async getTrackCustomers(userid, orgid, filterType = 'new') {
+    // New Logic: Tracked Customers are those with is_tracked = TRUE
+    // Filter strictly by followup_started_at (Aligns with Customer List logic)
+
+    // Unified Date Parsing Expression (Handles ISO and DD-MM-YYYY)
+    const dateExpression = `
+        CASE 
+            WHEN c.loandate ~ '^\\d{4}-\\d{2}-\\d{2}' THEN c.loandate::TIMESTAMP 
+            WHEN c.loandate ~ '^\\d{2}-\\d{2}-\\d{4}' THEN TO_TIMESTAMP(c.loandate, 'DD-MM-YYYY HH24:MI')
+            ELSE NULL 
+        END
+    `;
+
+    let timeFilter = "";
+    if (filterType === 'existing') {
+      // Older than 6 months OR NULL (legacy / safety)
+      timeFilter = `AND (${dateExpression} < NOW() - INTERVAL '6 months' OR ${dateExpression} IS NULL)`;
+    } else {
+      // Newer than 6 months
+      timeFilter = `AND ${dateExpression} >= NOW() - INTERVAL '6 months'`;
+    }
+
     const query = `
             SELECT DISTINCT ON (c.id)
                 c.id, 
@@ -36,13 +59,16 @@ class CustomerModel {
                 c.disbursedvalue as loanamount,
                 TO_CHAR(c.createdon, 'YYYY-MM-DD') as created_date,
                 ltd.appoinmentdate as appointmentdate,
-                ltd.id as tracknumber
+                COALESCE(ltd.tracknumber, CAST(ltd.id AS VARCHAR)) as tracknumber,
+                ltd.followup_started_at
             FROM customers c
-            LEFT JOIN leadtrackdetails ltd ON c.leadid = ltd.leadid
-            WHERE ltd.organizationid = $1
+            JOIN leadtrackdetails ltd ON c.leadid = ltd.leadid
+            WHERE c.leadfollowedby::text = $1
+            AND c.is_tracked = TRUE
+            ${timeFilter}
             ORDER BY c.id, c.createdon DESC
         `;
-    const { rows } = await pool.query(query, [orgid]);
+    const { rows } = await pool.query(query, [userid]);
     return rows;
   }
 
@@ -86,20 +112,20 @@ class CustomerModel {
       // Removed 'customer' and 'createdon' columns as they don't appear to exist in TrackModel definition
       await pool.query(
         `INSERT INTO leadtrackdetails 
-              (leadid, organizationid, contactfollowedby)
-              VALUES ($1, $2, $3)`,
+                  (leadid, organizationid, contactfollowedby, followup_started_at)
+                  VALUES ($1, $2, $3, NOW())`,
         [leadId, orgId, userId]
       );
     } else {
       // Update existing track details
       await pool.query(
-        "UPDATE leadtrackdetails SET contactfollowedby = $1, organizationid = $2 WHERE leadid = $3",
+        "UPDATE leadtrackdetails SET contactfollowedby = $1, organizationid = $2, followup_started_at = COALESCE(followup_started_at, NOW()) WHERE leadid = $3",
         [userId, orgId, leadId]
       );
     }
 
-    // 3. Ensure customer has correct leadfollowedby
-    await pool.query("UPDATE customers SET leadfollowedby = $1 WHERE id = $2", [userId, customerId]);
+    // 3. Ensure customer has correct leadfollowedby AND set is_tracked = TRUE
+    await pool.query("UPDATE customers SET leadfollowedby = $1, is_tracked = TRUE WHERE id = $2", [userId, customerId]);
 
     return { success: true };
   }
@@ -163,9 +189,9 @@ class CustomerModel {
     const { rows } = await pool.query(
       `INSERT INTO customers (
                 name, loandate, location, mobilenumber, product, email, status, bank,
-                disbursedvalue, profile, remarks, notes, newstatus, leadid, leadfollowedby, createdon
+                disbursedvalue, profile, remarks, notes, newstatus, leadid, leadfollowedby, is_tracked, createdon
             )
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,FALSE,NOW())
             RETURNING *`,
       [
         name,
@@ -194,16 +220,16 @@ class CustomerModel {
     const { rows } = await pool.query(
       `INSERT INTO customers (
                 name, loandate, location, mobilenumber, product, email, status, bank,
-                disbursedvalue, profile, remarks, notes, newstatus, leadid, leadfollowedby, createdon
+                disbursedvalue, profile, remarks, notes, newstatus, leadid, leadfollowedby, is_tracked, createdon
             )
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,FALSE,NOW())
             RETURNING *`,
       params
     );
     return rows[0];
   }
 
-  async getCustomerList(followedBy = null) {
+  async getCustomerList(followedBy = null, filterType = 'new', page = 1, limit = 50, products = null) {
     let query = `
             SELECT DISTINCT ON (c.id)
                 c.id, 
@@ -219,28 +245,110 @@ class CustomerModel {
                 c.createdon,
                 ltd.isdirectmeet,
                 ltd.appoinmentdate,
-                creator.name as converter,
-                follower.name as following
+                COALESCE(creator.name, conn.name) as converter,
+                follower.name as following,
+                c.leadfollowedby
             FROM customers c
             LEFT JOIN leadtrackdetails ltd ON c.leadid = ltd.leadid
             LEFT JOIN leadpersonaldetails lpd ON c.leadid = lpd.id
             LEFT JOIN employeedetails creator ON lpd.createdby::text = creator.id::text
+            LEFT JOIN connector conn ON lpd.connectorid::text = conn.id::text
             LEFT JOIN employeedetails follower ON c.leadfollowedby::text = follower.id::text
         `;
     const values = [];
+    let paramIdx = 1;
+
     if (followedBy) {
-      // Show if assigned to user AND (Not tracked at all OR Tracked by someone else/not me)
-      query += ` WHERE c.leadfollowedby::text = $1::text AND (ltd.id IS NULL OR ltd.contactfollowedby::text IS DISTINCT FROM $1::text)`;
+      // Employee view: ONLY assigned AND NOT tracked
+      query += ` WHERE c.leadfollowedby::text = $${paramIdx}::text AND (c.is_tracked IS FALSE OR c.is_tracked IS NULL)`;
       values.push(followedBy);
+      paramIdx++;
     } else {
-      // Admin View: Show ALL customers, do not filter by followed status.
-      // We removed the 'WHERE c.leadfollowedby IS NULL' restriction.
-      // Exclude customers who are already being followed/tracked
-      query += ` WHERE c.leadfollowedby IS NULL`;
+      // Admin view: ALL customers
+      query += ` WHERE 1=1`;
     }
+
+    // 6-Month Rule Logic with Robust Date Parsing
+    const dateParsingLogic = `
+        CASE 
+            WHEN c.createdon IS NULL OR c.createdon::text = '' THEN '1970-01-01'::timestamp
+            WHEN c.createdon::text ~ '^\\d{2}-\\d{2}-\\d{4} \\d{2}:\\d{2}' THEN TO_TIMESTAMP(c.createdon::text, 'DD-MM-YYYY HH24:MI')
+            WHEN c.createdon::text ~ '^\\d{2}-\\d{2}-\\d{4}' THEN TO_TIMESTAMP(c.createdon::text, 'DD-MM-YYYY')
+            ELSE c.createdon::timestamp 
+        END
+    `;
+
+    if (filterType === 'existing') {
+      query += ` AND ${dateParsingLogic} < NOW() - INTERVAL '6 months'`;
+    } else {
+      query += ` AND ${dateParsingLogic} >= NOW() - INTERVAL '6 months'`;
+    }
+
+    // Product Filter
+    if (products && products.length > 0) {
+      query += ` AND c.product = ANY($${paramIdx})`;
+      values.push(products);
+      paramIdx++;
+    }
+
     query += ` ORDER BY c.id DESC`;
+
+    // Pagination
+    const offset = (page - 1) * limit;
+    query += ` LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`;
+    values.push(limit, offset);
+
+    // Log the generated query for debugging
+    // console.log("------- SQL DEBUG -------");
+    // console.log("Query:", query);
+    // console.log("Values:", values);
+    // console.log("-------------------------");
+
     const { rows } = await pool.query(query, values);
     return rows;
+  }
+
+  async getCustomerListCount(followedBy = null, filterType = 'new', products = null) {
+    let query = `
+            SELECT COUNT(DISTINCT c.id) 
+            FROM customers c
+            LEFT JOIN leadtrackdetails ltd ON c.leadid = ltd.leadid
+        `;
+    const values = [];
+    let paramIdx = 1;
+
+    if (followedBy) {
+      // Employee view: ONLY customers assigned to this employee
+      query += ` WHERE c.leadfollowedby::text = $${paramIdx}::text`;
+      values.push(followedBy);
+      paramIdx++;
+    } else {
+      query += ` WHERE 1=1`;
+    }
+
+    const dateParsingLogic = `
+        CASE 
+            WHEN c.createdon IS NULL OR c.createdon::text = '' THEN '1970-01-01'::timestamp
+            WHEN c.createdon::text ~ '^\\d{2}-\\d{2}-\\d{4} \\d{2}:\\d{2}' THEN TO_TIMESTAMP(c.createdon::text, 'DD-MM-YYYY HH24:MI')
+            WHEN c.createdon::text ~ '^\\d{2}-\\d{2}-\\d{4}' THEN TO_TIMESTAMP(c.createdon::text, 'DD-MM-YYYY')
+            ELSE c.createdon::timestamp 
+        END
+    `;
+
+    if (filterType === 'existing') {
+      query += ` AND ${dateParsingLogic} < NOW() - INTERVAL '6 months'`;
+    } else {
+      query += ` AND ${dateParsingLogic} >= NOW() - INTERVAL '6 months'`;
+    }
+
+    if (products && products.length > 0) {
+      query += ` AND c.product = ANY($${paramIdx})`;
+      values.push(products);
+      paramIdx++;
+    }
+
+    const { rows } = await pool.query(query, values);
+    return parseInt(rows[0].count);
   }
 
   // Alias for backward compatibility
@@ -497,6 +605,13 @@ class CustomerModel {
       [id]
     );
     return rows[0];
+  }
+
+  async updateLeadCreator(leadid, userid) {
+    await pool.query(
+      "UPDATE leadpersonaldetails SET createdby = $2 WHERE id = $1",
+      [leadid, userid]
+    );
   }
 
   async updateLeadTrackFlag(leadid) {

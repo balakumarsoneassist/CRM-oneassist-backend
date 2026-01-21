@@ -192,34 +192,12 @@ class ReportModel {
     }
 
     async selectDashboardUser(empid) {
-        const query = `
-            SELECT 
-                s.id as statuscode, 
-                s.status, 
-                COUNT(l.id) as count
-            FROM leadpersonaldetails l
-            JOIN leadtrackdetails t ON l.id = t.leadid
-            JOIN statuscode s ON t.status = s.id
-            WHERE (t.contactfollowedby = $1 OR t.leadfollowedby = $1)
-            GROUP BY s.id, s.status
-            ORDER BY s.id
-        `;
-        const { rows } = await pool.query(query, [empid]);
+        const { rows } = await pool.query('SELECT * FROM GetDashboarduser($1)', [parseInt(empid)]);
         return rows;
     }
 
     async selectDashboardAdmin() {
-        const query = `
-            SELECT 
-                s.id as statuscode, 
-                s.status, 
-                COUNT(l.id) as count
-            FROM leadpersonaldetails l
-            JOIN statuscode s ON l.status = s.id
-            GROUP BY s.id, s.status
-            ORDER BY s.id
-        `;
-        const { rows } = await pool.query(query);
+        const { rows } = await pool.query('SELECT * FROM GetDashboardadmin()');
         return rows;
     }
 

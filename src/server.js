@@ -7,9 +7,6 @@ if (result.error) {
 }
 const app = require('./app');
 
-console.log('\n*****************************************');
-console.log('🚀 CRM BACKEND STARTING - DEC 31 17:23');
-console.log('*****************************************\n');
 
 // Port
 const PORT = process.env.PORT || 3000;

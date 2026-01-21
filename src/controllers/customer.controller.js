@@ -1,4 +1,6 @@
+const fs = require('fs');
 const customerService = require("../services/customer.service");
+const trackService = require("../services/track.service");
 
 class CustomerController {
 
@@ -47,10 +49,14 @@ class CustomerController {
         }
     }
 
+
+
+
     async getTrackCustomers(req, res) {
         try {
             const { userId, orgId } = req.params;
-            const customers = await customerService.getTrackCustomers(userId, orgId);
+            const filterType = (req.query.type || 'new').trim().toLowerCase(); // Normalize
+            const customers = await customerService.getTrackCustomers(userId, orgId, filterType);
             res.status(200).json(customers);
         } catch (error) {
             console.error("Error fetching track customers:", error);
@@ -128,7 +134,9 @@ class CustomerController {
                 });
             }
 
-            const data = await customerService.createCustomer(req.body);
+            // Pass userId (converter) to service
+            const userId = req.user ? req.user.id : null;
+            const data = await customerService.createCustomer(req.body, userId);
 
             res.status(201).json({
                 success: true,
@@ -150,16 +158,48 @@ class CustomerController {
         }
     }
 
+
     async getCustomerList(req, res) {
         try {
-            const followedBy = (req.user && (req.user.isadminrights === false || req.user.isadminrights === 'false'))
-                ? req.user.id
-                : null;
+            const logData = `
+------------------------------------------------
+[${new Date().toISOString()}] getCustomerList Called
+User: ${JSON.stringify(req.user)}
+IsAdminRights Raw: ${req.user ? req.user.isadminrights : 'N/A'}
+Computed IsAdmin: ${req.user && (req.user.isadminrights === true || req.user.isadminrights === 'true')}
+Computed FollowedBy: ${(!(req.user && (req.user.isadminrights === true || req.user.isadminrights === 'true'))) ? req.user.id : 'NULL (Admin)'}
+------------------------------------------------
+`;
+            fs.appendFileSync('backend_debug.log', logData);
 
-            const data = await customerService.getCustomerList(followedBy);
+            // Fail Secure: Assume NOT admin unless explicitly true
+            const isAdmin = req.user && (req.user.isadminrights === true || req.user.isadminrights === 'true');
+            console.log(">>> [DEBUG] isAdmin check:", isAdmin);
+
+            // If not admin, they are an employee and MUST be restricted
+            const followedBy = !isAdmin ? req.user.id : null;
+            console.log(">>> [DEBUG] followedBy (Ownership Filter):", followedBy);
+
+            const filterType = req.query.type || 'new'; // Default to 'new'
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 50;
+
+            // Parse products
+            let products = req.query.products;
+            if (products && typeof products === 'string') {
+                products = products.split(',');
+            }
+            if (products) {
+                products = products.map(p => p.trim()).filter(p => p);
+            }
+
+            const { data, count } = await customerService.getCustomerList(followedBy, filterType, page, limit, products);
+
             res.json({
                 success: true,
-                count: data.length,
+                count: parseInt(count || 0),
+                page,
+                limit,
                 data
             });
         } catch (err) {
@@ -321,6 +361,17 @@ class CustomerController {
             res.json({ success: true, data });
         } catch (err) {
             console.error("Error in getTimeline:", err);
+            res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    async getTrackHistory(req, res) {
+        try {
+            const { tracknumber } = req.params;
+            const data = await trackService.getCallHistory(tracknumber);
+            res.json({ success: true, data });
+        } catch (err) {
+            console.error("Error in getTrackHistory:", err);
             res.status(500).json({ error: "Internal server error" });
         }
     }
