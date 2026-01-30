@@ -67,6 +67,36 @@ class MasterService {
     async getLoanList() {
         return await MasterModel.selectLoanList();
     }
+
+    async getEmployeeTargets(employeeId) {
+        return await MasterModel.getEmployeeTargets(employeeId);
+    }
+
+    async saveTargets(employeeId, targets, totalRevenue) {
+        return await MasterModel.saveTargets(employeeId, targets, totalRevenue);
+    }
+
+    async getAllEmployeeTargets() {
+        return await MasterModel.getAllEmployeeTargets();
+    }
+
+    async updateTarget(targetId, targetData) {
+        return await MasterModel.updateTarget(targetId, targetData);
+    }
+
+    async deleteTargets(employeeId) {
+        return await MasterModel.deleteTargets(employeeId);
+    }
+    async getTargetsByEmployee(employeeId) {
+        return await MasterModel.getTargetsByEmployee(employeeId);
+    }
+    async updateProductRevenue(rows) {
+        return await MasterModel.updateProductRevenue(rows);
+    }
+    async getProductRevenue() {
+        return await MasterModel.getProductRevenue();
+    }
+
 }
 
 module.exports = new MasterService();

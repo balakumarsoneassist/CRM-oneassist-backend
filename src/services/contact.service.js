@@ -8,6 +8,16 @@ class ContactService {
     async getAssignedContacts(userid, orgid) {
         return await ContactModel.selectAssignedContacts(userid, orgid);
     }
+    async getAllAssignedContacts(orgid) {
+        return await ContactModel.selectAllAssignedContacts(orgid);
+    }
+    async getReassignAssignedContact(leadid, newEmployeeId, orgid) {
+        return await ContactModel.reassignAssignedContacts(leadid, newEmployeeId, orgid);
+    }
+    async getAllTrackedContacts(orgid) {
+        return await ContactModel.selectAllTrackedContacts(orgid);
+    }
+
 
     async getTrackContacts(userid, orgid) {
         return await ContactModel.selectTrackContacts(userid, orgid);

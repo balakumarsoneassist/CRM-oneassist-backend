@@ -1,8 +1,8 @@
 const CustomerModel = require('../models/customer.model');
 
 class CustomerService {
-    async createCustomer(data) {
-        const { loandate, location, mobilenumber, product, email, status, bank, disbursedvalue, profile, remarks, notes, newstatus, leadid, leadfollowedby } = data;
+    async createCustomer(data, userId) {
+        const { name, loandate, location, mobilenumber, product, email, status, bank, disbursedvalue, profile, remarks, notes, newstatus, leadid, leadfollowedby } = data;
 
         // First, finding lead
         const lead = await CustomerModel.findLeadById(leadid);

@@ -127,8 +127,9 @@ class CustomerController {
                     required: ["loandate", "product", "bank", "disbursedvalue", "leadid"]
                 });
             }
+            const userId = req.user ? req.user.id : null;
 
-            const data = await customerService.createCustomer(req.body);
+            const data = await customerService.createCustomer(req.body, userId);
 
             res.status(201).json({
                 success: true,
