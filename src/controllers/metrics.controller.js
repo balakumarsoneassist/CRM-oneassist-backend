@@ -10,11 +10,14 @@ class MetricsController {
             const search = req.query.search || '';
             const sortBy = req.query.sortBy || 'name';
             const sortOrder = req.query.sortOrder || 'asc';
+            const fromDate = req.query.fromDate || null;
+            const toDate = req.query.toDate || null;
 
 
             const result = await metricsService.getAllAchievementMetrics({
-                page, limit, search, designation: req.query.designation, sortBy, sortOrder
+                page, limit, search, designation: req.query.designation, sortBy, sortOrder, fromDate, toDate
             });
+            console.log(result);
             res.json({
                 success: true,
                 data: result.data,
@@ -76,13 +79,15 @@ class MetricsController {
                 targetId = req.user.id;
             }
             if (!targetId) return res.status(400).json({ error: "Employee ID required" });
-            const data = await metricsService.getRevenueBreakdown(targetId);
+            const { fromDate, toDate } = req.query;
+            const data = await metricsService.getRevenueBreakdown(targetId, fromDate, toDate);
             res.json({ success: true, data });
         } catch (err) {
             console.error("Error in getRevenueBreakdown:", err);
             res.status(err.status || 500).json({ error: err.message || "Internal server error" });
         }
     }
+
 }
 
 module.exports = new MetricsController();
