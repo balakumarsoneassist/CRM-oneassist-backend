@@ -15,6 +15,7 @@ class MetricsController {
             const result = await metricsService.getAllAchievementMetrics({
                 page, limit, search, designation: req.query.designation, sortBy, sortOrder
             });
+            console.log(result);
             res.json({
                 success: true,
                 data: result.data,
@@ -83,6 +84,7 @@ class MetricsController {
             res.status(err.status || 500).json({ error: err.message || "Internal server error" });
         }
     }
+
 }
 
 module.exports = new MetricsController();

@@ -19,6 +19,13 @@ router.get("/bankmaster/:id", masterController.getBankById);
 // Loan Master (public)
 router.get("/getloanlist", masterController.getLoanList);
 
+//Revenue Master (public)
+router.get("/gettargetsbyemployee/:employeeId", masterController.getTargetsByEmployee);
+router.post("/savetargets", masterController.saveTargets);
+router.delete("/deletetarget/:employeeId", masterController.deleteTarget);
+router.get("/getalltargets", masterController.getAllEmployeeTargets);
+router.post("/updateProductRevenue", masterController.updateProductRevenue);
+router.get("/getProductRevenue", masterController.getProductRevenue);
 
 /**
  * ======================
