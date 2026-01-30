@@ -1,3 +1,4 @@
+const { connectorLogin } = require("../controllers/connector.controller");
 const pool = require("../db/index");
 
 class MetricsModel {
@@ -57,136 +58,174 @@ class MetricsModel {
     }
 
     async getRevenueAchievement(employeeId) {
-        const { rows } = await pool.query(
-            `SELECT COALESCE(SUM(
-                CASE
-                    -- PL Logic
-                    WHEN LOWER(c.product) ILIKE '%personal loan%' OR LOWER(c.product) = 'pl' THEN
-                        CASE 
-                            WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.02
-                            WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.01
-                            ELSE 0 
-                        END
-                    -- BL Logic
-                    WHEN LOWER(c.product) ILIKE '%business loan%' OR LOWER(c.product) = 'bl' THEN
-                        CASE 
-                            WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.02
-                            WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.01
-                            ELSE 0 
-                        END
-                    -- HL Logic
-                    WHEN LOWER(c.product) ILIKE '%home loan%' OR LOWER(c.product) = 'hl' THEN
-                        CASE 
-                            WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.005
-                            WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.003
-                            ELSE 0 
-                        END
-                    -- LAP Logic
-                    WHEN LOWER(c.product) ILIKE '%loan against property%' OR LOWER(c.product) = 'lap' THEN
-                        CASE
-                            WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.007
-                            WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.004
-                            ELSE 0
-                        END
-                    ELSE 0
-                END
-            ), 0) as total
-            FROM customers c
-            JOIN leadtrackdetails ltd ON ltd.leadid = c.leadid
-            JOIN leadpersonaldetails lp ON lp.id = c.leadid
-            WHERE c.leadfollowedby = $1
-            AND (c.status::text IN ('17', '18', 'Disbursed') 
-                OR c.status::text ILIKE 'disbursement' OR c.status::text ILIKE 'completed')
-            AND ltd.id = (SELECT MAX(id) FROM leadtrackdetails WHERE leadid = c.leadid)`,
+        const client = await pool.connect();
+        const { rows } = await client.query(
+            `
+    SELECT 
+      COALESCE(
+        SUM(
+          CAST(ltd.disbursementamount AS NUMERIC)
+          * (
+              CASE
+                WHEN LOWER(lp.contacttype) ILIKE '%connector%'
+                  OR LOWER(lp.contacttype) ILIKE '%qr%'
+                  THEN COALESCE(pwr.connector_percent, 0)
+                ELSE COALESCE(pwr.self_percent, 0)
+              END
+            ) / 100
+        ),
+        0
+      ) AS total
+    FROM customers c
+    JOIN leadtrackdetails ltd 
+      ON ltd.leadid = c.leadid
+    JOIN leadpersonaldetails lp 
+      ON lp.id = c.leadid
+
+    LEFT JOIN productwiserevenuedetails pwr
+      ON LOWER(pwr.product_name) = LOWER(
+        CASE
+          -- PERSONAL LOAN
+          WHEN c.product ILIKE '%personal%' OR c.product ILIKE 'pl%' 
+            THEN 'pl'
+
+          -- BUSINESS LOAN
+          WHEN c.product ILIKE '%business%' OR c.product ILIKE 'bl%' 
+            THEN 'bl'
+
+          -- LAP
+          WHEN c.product ILIKE '%lap%' 
+            THEN 'lap'
+
+          -- HOME LOAN
+          WHEN c.product ILIKE '%home%'
+            OR c.product ILIKE '%land%'
+            OR c.product ILIKE '%lan%'
+            THEN 'hl'
+        END
+      )
+
+    WHERE c.leadfollowedby = $1
+      AND (
+        c.status::text IN ('17', '18', 'Disbursed')
+        OR c.status::text ILIKE 'disbursement'
+        OR c.status::text ILIKE 'completed'
+      )
+      AND ltd.id = (
+        SELECT MAX(id)
+        FROM leadtrackdetails
+        WHERE leadid = c.leadid
+        )
+    `,
             [employeeId]
         );
-        return parseFloat(rows[0].total) || 0;
+
+        const revenueAchievement = Number(rows[0]?.total) || 0;
+
+        await client.query(
+            `
+        UPDATE targetmetrics
+        SET revenue_achievement = $1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE employee_id = $2
+        `,
+            [revenueAchievement, employeeId]
+        );
+
+        return revenueAchievement;
+
+
     }
+
+
+
 
     async getRevenueBreakdown(employeeId) {
         const { rows } = await pool.query(
-            `SELECT 
-                c.product,
-                c.name as customer_name,
-                lp.contacttype,
-                CAST(ltd.desireloanamount AS NUMERIC) as disbursement_amount,
-                CASE
-                    -- PL Logic
-                    WHEN LOWER(c.product) ILIKE '%personal loan%' OR LOWER(c.product) = 'pl' THEN
-                        CASE 
-                            WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN 2.0
-                            WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN 1.0
-                            ELSE 0 
-                        END
-                    -- BL Logic
-                    WHEN LOWER(c.product) ILIKE '%business loan%' OR LOWER(c.product) = 'bl' THEN
-                        CASE 
-                            WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN 2.0
-                            WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN 1.0
-                            ELSE 0 
-                        END
-                    -- HL Logic
-                    WHEN LOWER(c.product) ILIKE '%home loan%' OR LOWER(c.product) = 'hl' THEN
-                        CASE 
-                            WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN 0.5
-                            WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN 0.3
-                            ELSE 0 
-                        END
-                    -- LAP Logic
-                    WHEN LOWER(c.product) ILIKE '%loan against property%' OR LOWER(c.product) = 'lap' THEN
-                        CASE
-                            WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN 0.7
-                            WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN 0.4
-                            ELSE 0
-                        END
-                    ELSE 0
-                END as percentage,
-                CASE
-                    -- PL Logic
-                    WHEN LOWER(c.product) ILIKE '%personal loan%' OR LOWER(c.product) = 'pl' THEN
-                        CASE 
-                            WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.02
-                            WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.01
-                            ELSE 0 
-                        END
-                    -- BL Logic
-                    WHEN LOWER(c.product) ILIKE '%business loan%' OR LOWER(c.product) = 'bl' THEN
-                        CASE 
-                            WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.02
-                            WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.01
-                            ELSE 0 
-                        END
-                    -- HL Logic
-                    WHEN LOWER(c.product) ILIKE '%home loan%' OR LOWER(c.product) = 'hl' THEN
-                        CASE 
-                            WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.005
-                            WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.003
-                            ELSE 0 
-                        END
-                    -- LAP Logic
-                    WHEN LOWER(c.product) ILIKE '%loan against property%' OR LOWER(c.product) = 'lap' THEN
-                        CASE
-                            WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.007
-                            WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.004
-                            ELSE 0
-                        END
-                    ELSE 0
-                END as revenue_amount
-            FROM customers c
-            JOIN leadtrackdetails ltd ON ltd.leadid = c.leadid
-            JOIN leadpersonaldetails lp ON lp.id = c.leadid
-            WHERE c.leadfollowedby = $1
-            AND (c.status::text IN ('17', '18', 'Disbursed') 
-                OR c.status::text ILIKE 'disbursement' OR c.status::text ILIKE 'completed')
-            AND ltd.id = (SELECT MAX(id) FROM leadtrackdetails WHERE leadid = c.leadid)
-            ORDER BY c.id DESC`,
+            `
+    SELECT 
+      c.product,
+      c.name AS customer_name,
+      lp.contacttype,
+      CAST(ltd.disbursementamount AS NUMERIC) AS disbursement_amount,
+      COALESCE(
+        CASE
+          WHEN LOWER(lp.contacttype) IN (
+            'self', 'website', 'normal contact', 'company contact'
+          )
+          THEN pwr.self_percent
+
+          WHEN LOWER(lp.contacttype) IN (
+            'connector', 'qr', 'connector contact', 'qr contact'
+          )
+          THEN pwr.connector_percent
+
+          ELSE 0
+        END,
+        0
+      ) AS percentage,
+      COALESCE(
+        CAST(ltd.disbursementamount AS NUMERIC)
+        * 
+        (
+          CASE
+            WHEN LOWER(lp.contacttype) IN (
+              'self', 'website', 'normal contact', 'company contact'
+            )
+            THEN pwr.self_percent
+
+            WHEN LOWER(lp.contacttype) IN (
+              'connector', 'qr', 'connector contact', 'qr contact'
+            )
+            THEN pwr.connector_percent
+
+            ELSE 0
+          END
+        ) / 100,
+        0
+      ) AS revenue_amount
+
+    FROM customers c
+    JOIN leadtrackdetails ltd 
+      ON ltd.leadid = c.leadid
+    JOIN leadpersonaldetails lp 
+      ON lp.id = c.leadid
+
+    LEFT JOIN productwiserevenuedetails pwr
+      ON LOWER(pwr.product_name) = LOWER(
+        CASE
+          WHEN c.product ILIKE '%personal%' OR c.product ILIKE 'pl%' THEN 'pl'
+          WHEN c.product ILIKE '%business%' OR c.product ILIKE 'bl%' THEN 'bl'
+          WHEN c.product ILIKE '%lap%' THEN 'lap'
+          WHEN c.product ILIKE '%home%'
+            OR c.product ILIKE '%land%'
+            OR c.product ILIKE '%lan%' THEN 'hl'
+        END
+      )
+
+    WHERE c.leadfollowedby = $1
+      AND (
+        c.status::text IN ('17', '18', 'Disbursed')
+        OR c.status::text ILIKE 'disbursement'
+        OR c.status::text ILIKE 'completed'
+      )
+      AND ltd.id = (
+        SELECT MAX(id)
+        FROM leadtrackdetails
+        WHERE leadid = c.leadid
+      )
+    ORDER BY c.id DESC
+    `,
             [employeeId]
         );
+
         return rows;
     }
 
+
     async updateTargetMetrics(id, data) {
-        const { logins, sanctions, disbursement_volume, attended_calls_target, converted_leads, revenue_target, revenue_achievement } = data;
+        const { logins, sanctions, disbursement_volume, attended_calls_target, converted_leads, revenue_target } = data;
+        const revenue_achievement = await this.getRevenueAchievement(id);
         const { rows } = await pool.query(
             `INSERT INTO targetmetrics (employee_id, logins, sanctions, disbursement_volume, attended_calls_target, converted_leads, revenue_target, revenue_achievement, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
@@ -197,7 +236,7 @@ class MetricsModel {
          attended_calls_target = COALESCE($5, targetmetrics.attended_calls_target),
          converted_leads = COALESCE($6, targetmetrics.converted_leads),
          revenue_target = COALESCE($7, targetmetrics.revenue_target),
-         revenue_achievement = COALESCE($8, targetmetrics.revenue_achievement),
+         revenue_achievement = $8,
          updated_at = NOW()
        RETURNING *`,
             [id, logins, sanctions, disbursement_volume, attended_calls_target, converted_leads, revenue_target, revenue_achievement]

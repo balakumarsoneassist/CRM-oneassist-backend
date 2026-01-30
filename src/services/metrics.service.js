@@ -16,6 +16,7 @@ class MetricsService {
         // If strictly required across ALL pages, we'd need a separate aggregate query.
         // For performance, we stick to current page totals for the 'Admin Dashboard' snapshot or implement a global sum later.
         const totals = allMetrics.reduce((acc, curr) => ({
+
             logins_actual: acc.logins_actual + (parseInt(curr.logins) || 0),
             logins_target: acc.logins_target + (parseInt(curr.logins_target) || 0),
             sanctions_actual: acc.sanctions_actual + (parseInt(curr.sanctions) || 0),
@@ -43,7 +44,8 @@ class MetricsService {
             converted_actual: parseInt(m.converted_leads) || 0,
             attended_calls: parseInt(m.attended_calls) || 0,
             revenue_target: parseFloat(m.revenue_target) || 0,
-            revenue_achievement: parseFloat(m.revenue_achievement) || 0
+            revenue_achievement: parseFloat(m.revenue_achievement) || 0,
+
         }));
 
         return {

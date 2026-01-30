@@ -207,6 +207,113 @@ class MasterController {
             res.status(500).json({ error: "Internal server error" });
         }
     }
+
+    async updateProductRevenue(req, res) {
+        try {
+            const rows = req.body;
+
+            if (!Array.isArray(rows) || rows.length === 0) {
+                return res.status(400).json({ error: 'Payload must be a non-empty array' });
+            }
+
+            // Validate each row
+            for (const row of rows) {
+                const { productName, selfPercent, connectorPercent } = row;
+
+                if (
+                    !productName ||
+                    selfPercent === undefined ||
+                    connectorPercent === undefined
+                ) {
+                    return res.status(400).json({ error: 'Invalid row data' });
+                }
+            }
+
+            const response = await masterService.updateProductRevenue(rows);
+
+            return res.status(200).json({ response, message: 'Saved successfully' });
+
+        } catch (err) {
+            console.error(err);
+            res.status(500).json({ error: err.message });
+        }
+    }
+
+
+    async saveTargets(req, res) {
+        try {
+            const { employeeId, targets, totalRevenue } = req.body;
+
+            if (!employeeId || !Array.isArray(targets)) {
+                return res.status(400).json({ error: 'Invalid payload' });
+            }
+
+            // 1️⃣ Save targets (array)
+            const response = await masterService.saveTargets(employeeId, targets, totalRevenue);
+            return res.status(201).json(response)
+
+        } catch (err) {
+            console.error(err);
+            res.status(500).json({ error: err.message });
+        }
+    };
+
+    async getAllEmployeeTargets(req, res) {
+        try {
+            const targets = await masterService.getAllEmployeeTargets();
+            res.json(targets);
+        } catch (err) {
+            console.error(err);
+            res.status(500).json({ error: err.message });
+        }
+    }
+
+    // Get targets for an employee
+    async getTargetsByEmployee(req, res) {
+        const { employeeId } = req.params;
+        console.log(employeeId);
+
+        if (!employeeId) {
+            return res.status(400).json({ error: 'employeeId required' });
+        }
+
+        try {
+            const data = await masterService.getTargetsByEmployee(employeeId);
+            res.json(data);
+        } catch (err) {
+            console.error(err);
+            res.status(500).json({ error: 'Failed to fetch employee targets' });
+        }
+    };
+
+    // DELETE /deletetarget/:employeeId
+    async deleteTarget(req, res) {
+        const { employeeId } = req.params;
+
+        if (!employeeId) {
+            return res.status(400).json({ error: "employeeId required" });
+        }
+
+        try {
+            await masterService.deleteTargets(employeeId);
+            return res.json({ message: "Targets deleted successfully" });
+        } catch (err) {
+            console.error(err);
+            return res.status(500).json({ error: "Failed to delete targets" });
+        }
+    };
+
+    async getProductRevenue(req, res) {
+        try {
+            const result = await masterService.getProductRevenue();
+            res.status(200).json(result);
+        } catch (err) {
+            console.error(err);
+            res.status(500).json({ error: err.message });
+        }
+    }
+
+
 }
 
 module.exports = new MasterController();

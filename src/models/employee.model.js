@@ -28,7 +28,7 @@ class EmployeeModel {
         // 2. Fetch Metrics ONLY for those specific IDs (Heavy but small batch)
         if (!isMetricSort) {
             // A. Fetch Base Data (IDs)
-            let baseQuery = `SELECT e.id, e.name, e.designation, e.image_data, e.isactive FROM employeedetails e WHERE e.isactive = true`;
+            let baseQuery = `SELECT e.id, e.name, e.designation, e.image_data, e.isactive, e.isadminrights FROM employeedetails e WHERE e.isactive = true AND e.isadminrights = false`;
             let baseValues = [];
             let pIdx = 1;
 
@@ -78,51 +78,51 @@ class EmployeeModel {
                     (SELECT COUNT(*) FROM customers c WHERE c.leadfollowedby = e.id) as converted_leads,
                     -- Attended Calls Actual
                     (SELECT COUNT(*) FROM leadtrackhistorydetails lth WHERE lth.contactfollowedby = e.id) as attended_calls,
+                        COALESCE((
+        SELECT SUM(
+            CAST(ltd.disbursementamount AS NUMERIC)
+            *
+            (
+                CASE
+                    WHEN LOWER(lp.contacttype) IN (
+                        'connector','qr','connector contact','qr contact'
+                    )
+                    THEN COALESCE(pwr.connector_percent, 0)
+                    ELSE COALESCE(pwr.self_percent, 0)
+                END
+            ) / 100
+        )
+        FROM customers c
+        JOIN leadtrackdetails ltd ON ltd.leadid = c.leadid
+        JOIN leadpersonaldetails lp ON lp.id = c.leadid
+        LEFT JOIN productwiserevenuedetails pwr
+            ON LOWER(pwr.product_name) = LOWER(
+                CASE
+                    WHEN c.product ILIKE '%personal%' OR c.product ILIKE 'pl%' THEN 'pl'
+                    WHEN c.product ILIKE '%business%' OR c.product ILIKE 'bl%' THEN 'bl'
+                    WHEN c.product ILIKE '%lap%' THEN 'lap'
+                    WHEN c.product ILIKE '%home%'
+                      OR c.product ILIKE '%land%'
+                      OR c.product ILIKE '%lan%' THEN 'hl'
+                END
+            )
+        WHERE c.leadfollowedby = e.id
+        AND (
+            c.status::text IN ('17','18','Disbursed')
+            OR c.status::text ILIKE 'disbursement'
+            OR c.status::text ILIKE 'completed'
+        )
+        AND ltd.id = (
+            SELECT MAX(id) FROM leadtrackdetails WHERE leadid = c.leadid
+        )
+    ), 0) AS revenue_achievement,
                     -- Targets (Joined)
                     COALESCE(tm.logins, 0) as logins_target,
                     COALESCE(tm.sanctions, 0) as sanctions_target,
                     COALESCE(tm.disbursement_volume, 0) as disbursement_target,
                     COALESCE(tm.converted_leads, 0) as converted_target,
                     COALESCE(tm.attended_calls_target, 0) as attended_calls_target,
-                    COALESCE(tm.revenue_target, 0) as revenue_target,
-                    -- Revenue Achievement
-                    COALESCE((
-                        SELECT SUM(
-                            CASE
-                                WHEN LOWER(c.product) ILIKE '%personal loan%' OR LOWER(c.product) = 'pl' THEN
-                                    CASE 
-                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.02
-                                        WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.01
-                                        ELSE 0 
-                                    END
-                                WHEN LOWER(c.product) ILIKE '%business loan%' OR LOWER(c.product) = 'bl' THEN
-                                    CASE 
-                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.02
-                                        WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.01
-                                        ELSE 0 
-                                    END
-                                WHEN LOWER(c.product) ILIKE '%home loan%' OR LOWER(c.product) = 'hl' THEN
-                                    CASE 
-                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.005
-                                        WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.003
-                                        ELSE 0 
-                                    END
-                                WHEN LOWER(c.product) ILIKE '%loan against property%' OR LOWER(c.product) = 'lap' THEN
-                                    CASE
-                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.007
-                                        WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.004
-                                        ELSE 0
-                                    END
-                                ELSE 0
-                            END
-                        )
-                        FROM customers c
-                        JOIN leadtrackdetails ltd ON ltd.leadid = c.leadid
-                        JOIN leadpersonaldetails lp ON lp.id = c.leadid
-                        WHERE c.leadfollowedby = e.id
-                        AND (c.status::text IN ('17', '18', 'Disbursed') OR c.status::text ILIKE 'disbursement' OR c.status::text ILIKE 'completed')
-                        AND ltd.id = (SELECT MAX(id) FROM leadtrackdetails WHERE leadid = c.leadid)
-                    ), 0) as revenue_achievement
+                    COALESCE(tm.revenue_target, 0) as revenue_target
                 FROM employeedetails e
                 LEFT JOIN targetmetrics tm ON e.id = tm.employee_id
                 WHERE e.id = ANY($1)
@@ -152,6 +152,7 @@ class EmployeeModel {
                     e.designation, 
                     e.image_data, 
                     e.isactive,
+                    e.isadminrights,
                     -- Logins Actual
                     (SELECT COUNT(*) FROM customers c 
                         WHERE c.leadfollowedby = e.id 
@@ -175,55 +176,68 @@ class EmployeeModel {
                     (SELECT COUNT(*) FROM customers c WHERE c.leadfollowedby = e.id) as converted_leads,
                     -- Attended Calls Actual
                     (SELECT COUNT(*) FROM leadtrackhistorydetails lth WHERE lth.contactfollowedby = e.id) as attended_calls,
+                                      
+      COALESCE((
+        SELECT SUM(
+          CAST(ltd.disbursementamount AS NUMERIC)
+          * (
+              CASE
+                WHEN LOWER(lp.contacttype) ILIKE '%connector%'
+                  OR LOWER(lp.contacttype) ILIKE '%qr%'
+                  THEN COALESCE(pwr.connector_percent, 0)
+                ELSE COALESCE(pwr.self_percent, 0)
+              END
+            ) / 100
+        ),
+        0
+      ) AS total
+    FROM customers c
+    JOIN leadtrackdetails ltd 
+      ON ltd.leadid = c.leadid
+    JOIN leadpersonaldetails lp 
+      ON lp.id = c.leadid
+
+    LEFT JOIN productwiserevenuedetails pwr
+      ON LOWER(pwr.product_name) = LOWER(
+        CASE
+          -- PERSONAL LOAN
+          WHEN c.product ILIKE '%personal%' OR c.product ILIKE 'pl%' 
+            THEN 'pl'
+
+          -- BUSINESS LOAN
+          WHEN c.product ILIKE '%business%' OR c.product ILIKE 'bl%' 
+            THEN 'bl'
+
+          -- LAP
+          WHEN c.product ILIKE '%lap%' 
+            THEN 'lap'
+
+          -- HOME LOAN
+          WHEN c.product ILIKE '%home%'
+            OR c.product ILIKE '%land%'
+            OR c.product ILIKE '%lan%'
+            THEN 'hl'
+        END
+      )
+
+    WHERE c.leadfollowedby = $1
+      AND (
+        c.status::text IN ('17', '18', 'Disbursed')
+        OR c.status::text ILIKE 'disbursement'
+        OR c.status::text ILIKE 'completed'
+      )
+      AND ltd.id = (
+        SELECT MAX(id)
+        FROM leadtrackdetails
+        WHERE leadid = c.leadid
+        ),0) AS revenue_achievement,
                     -- Targets (Joined)
                     COALESCE(tm.logins, 0) as logins_target,
                     COALESCE(tm.sanctions, 0) as sanctions_target,
                     COALESCE(tm.disbursement_volume, 0) as disbursement_target,
                     COALESCE(tm.converted_leads, 0) as converted_target,
                     COALESCE(tm.attended_calls_target, 0) as attended_calls_target,
-                    COALESCE(tm.revenue_target, 0) as revenue_target,
-                    -- Revenue Achievement (Dynamic Calculation)
-                    COALESCE((
-                        SELECT SUM(
-                            CASE
-                                -- PL Logic
-                                WHEN LOWER(c.product) ILIKE '%personal loan%' OR LOWER(c.product) = 'pl' THEN
-                                    CASE 
-                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.02
-                                        WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.01
-                                        ELSE 0 
-                                    END
-                                -- BL Logic
-                                WHEN LOWER(c.product) ILIKE '%business loan%' OR LOWER(c.product) = 'bl' THEN
-                                    CASE 
-                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.02
-                                        WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.01
-                                        ELSE 0 
-                                    END
-                                -- HL Logic
-                                WHEN LOWER(c.product) ILIKE '%home loan%' OR LOWER(c.product) = 'hl' THEN
-                                    CASE 
-                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.005
-                                        WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.003
-                                        ELSE 0 
-                                    END
-                                -- LAP Logic
-                                WHEN LOWER(c.product) ILIKE '%loan against property%' OR LOWER(c.product) = 'lap' THEN
-                                    CASE
-                                        WHEN LOWER(lp.contacttype) IN ('self', 'website', 'normal contact', 'company contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.007
-                                        WHEN LOWER(lp.contacttype) IN ('connector', 'qr', 'connector contact', 'qr contact') THEN CAST(ltd.desireloanamount AS NUMERIC) * 0.004
-                                        ELSE 0
-                                    END
-                                ELSE 0
-                            END
-                        )
-                        FROM customers c
-                        JOIN leadtrackdetails ltd ON ltd.leadid = c.leadid
-                        JOIN leadpersonaldetails lp ON lp.id = c.leadid
-                        WHERE c.leadfollowedby = e.id
-                        AND (c.status::text IN ('17', '18', 'Disbursed') OR c.status::text ILIKE 'disbursement' OR c.status::text ILIKE 'completed')
-                        AND ltd.id = (SELECT MAX(id) FROM leadtrackdetails WHERE leadid = c.leadid)
-                    ), 0) as revenue_achievement
+                    COALESCE(tm.revenue_target, 0) as revenue_target
                 FROM employeedetails e
                 LEFT JOIN targetmetrics tm ON e.id = tm.employee_id
                 WHERE e.isactive = true

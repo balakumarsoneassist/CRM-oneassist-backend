@@ -9,5 +9,9 @@ router.get('/trackcontacts/:userid/:orgid', verifyToken, contactController.getTr
 router.get('/trackleads/:userid/:orgid', verifyToken, contactController.getTrackLeads);
 router.get('/unassignedleads/:orgid', verifyToken, contactController.getUnassignedLeads);
 router.get('/assignedleads/:userid/:orgid', verifyToken, contactController.getAssignedLeads);
+router.get('/allassignedcontacts/:orgid', verifyToken, contactController.getAllAssignedContacts);
+router.post('/reassignassignedcontacts', verifyToken, contactController.reassignAssignedContact);
+router.get('/alltrackedcontacts/:orgid', verifyToken, contactController.getAllTrackedContacts);
+
 
 module.exports = router;
