@@ -283,17 +283,17 @@ class MasterModel {
 
             await Promise.all(insertPromises);
 
-            await client.query(
-                `
-            INSERT INTO targetmetrics (employee_id, revenue_target)
-            VALUES ($1, $2)
-            ON CONFLICT (employee_id)
-            DO UPDATE SET
-                revenue_target = EXCLUDED.revenue_target,
-                updated_at = CURRENT_TIMESTAMP
-            `,
-                [employeeId, totalRevenue]
-            );
+            // await client.query(
+            //     `
+            // INSERT INTO targetmetrics (employee_id, revenue_target)
+            // VALUES ($1, $2)
+            // ON CONFLICT (employee_id)
+            // DO UPDATE SET
+            //     revenue_target = EXCLUDED.revenue_target,
+            //     updated_at = CURRENT_TIMESTAMP
+            // `,
+            //     [employeeId, totalRevenue]
+            // );
             await client.query('COMMIT');
 
 
