@@ -1,6 +1,5 @@
 const metricsModel = require("../models/metrics.model");
 const employeeModel = require("../models/employee.model");
-const { connectorLogin } = require("../controllers/connector.controller");
 
 class MetricsService {
     async getAllAchievementMetrics(params) {
