@@ -202,7 +202,7 @@ class LeadService {
     }
 
     async updateTrackDetails(tracknumber, data) {
-        const WhatsAppService = require('./whatsapp.service');
+        // const WhatsAppService = require('./whatsapp.service');
         const fields = [
             'leadid', 'appoinmentdate', 'status', 'notes', 'isdirectmeet', 'occupationtype', 'loantype', 'desireloanamount', 'tenure', 'preferedbank', 'cibilscore', 'incometype', 'incomeamount', 'isidproof', 'isageproof', 'isaddessproof', 'iscreditcardstatement', 'isexistingloantrack', 'iscurrentaccountstatement', 'isstabilityproof', 'isbankstatement', 'ispayslip', 'isform16', 'isbusinessproof', 'isitr', 'isgststatement', 'isencumbrancecertificate', 'istitledeed', 'isparentdeed', 'islayoutplan', 'isregulationorder', 'isbuildingpermit', 'ispropertytax', 'ispatta', 'isconstructionagreement', 'issaleagreement', 'isapf', 'isudsregistration', 'isrcbook', 'bankname', 'applicationnumber', 'logindate', 'loginvalue', 'sanctionroi', 'sanctiontenure', 'sanctionletter', 'sanctionvalue', 'sanctiondate', 'psdcondition', 'islegal', 'istechnical', 'legalreport', 'technicalreport', 'ispsdconditionverified', 'modifyon', 'contactfollowedby', 'leadfollowedby', 'isnoresponse', 'organizationid', 'payoutpercent', 'ispaid', 'connectorcontactid', 'disbursementamount', 'customername', 'datastrength', 'compname', 'compcat', 'custsegment'
         ];
@@ -229,59 +229,59 @@ class LeadService {
         if (!updatedRecord) return null;
 
         // Trigger WhatsApp Notifications if mobile exists
-        if (mobile && updatedRecord) {
-            try {
-                // 1. Appointment Date Fixed/Changed
-                const isNewAppointment = !oldData?.appoinmentdate && updatedRecord.appoinmentdate;
-                const isAppointmentChanged = oldData?.appoinmentdate && updatedRecord.appoinmentdate &&
-                    new Date(oldData.appoinmentdate).getTime() !== new Date(updatedRecord.appoinmentdate).getTime();
+        // if (mobile && updatedRecord) {
+        //     try {
+        //         // 1. Appointment Date Fixed/Changed
+        //         const isNewAppointment = !oldData?.appoinmentdate && updatedRecord.appoinmentdate;
+        //         const isAppointmentChanged = oldData?.appoinmentdate && updatedRecord.appoinmentdate &&
+        //             new Date(oldData.appoinmentdate).getTime() !== new Date(updatedRecord.appoinmentdate).getTime();
 
-                if (isNewAppointment || isAppointmentChanged) {
-                    const dateObj = new Date(updatedRecord.appoinmentdate);
-                    const dateStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                    const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(':', '.');
+        //         if (isNewAppointment || isAppointmentChanged) {
+        //             const dateObj = new Date(updatedRecord.appoinmentdate);
+        //             const dateStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        //             const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(':', '.');
 
-                    const combinedDateTime = `${dateStr} at ${timeStr}`;
+        //             const combinedDateTime = `${dateStr} at ${timeStr}`;
 
-                    const components = [
-                        {
-                            type: 'body', parameters: [
-                                { type: 'text', text: combinedDateTime }
-                            ]
-                        }
-                    ];
-                    WhatsAppService.sendTemplateMessage(mobile, 'appointment_date', 'en_US', components)
-                        .then(r => console.log('Appointment WhatsApp Sent:', r))
-                        .catch(e => console.error('WS Appointment Error:', e));
-                }
+        //             const components = [
+        //                 {
+        //                     type: 'body', parameters: [
+        //                         { type: 'text', text: combinedDateTime }
+        //                     ]
+        //                 }
+        //             ];
+        //             WhatsAppService.sendTemplateMessage(mobile, 'appointment_date', 'en_US', components)
+        //                 .then(r => console.log('Appointment WhatsApp Sent:', r))
+        //                 .catch(e => console.error('WS Appointment Error:', e));
+        //         }
 
-                // 2. Status Specific Messages
-                if (data.status && data.status !== oldData?.status) {
-                    const status = parseInt(data.status);
+        //         // 2. Status Specific Messages
+        //         if (data.status && data.status !== oldData?.status) {
+        //             const status = parseInt(data.status);
 
-                    if (status === 12) { // Document Collection
-                        const components = [{
-                            type: 'body',
-                            parameters: [
-                                { type: 'text', text: updatedRecord.isidproof ? 'Aadhar' : ' ' },
-                                { type: 'text', text: updatedRecord.isageproof ? 'PAN' : ' ' },
-                                { type: 'text', text: updatedRecord.isbankstatement ? 'Bank Passbook' : ' ' },
-                                { type: 'text', text: updatedRecord.ispayslip ? 'Payslip' : ' ' }
-                            ]
-                        }];
-                        WhatsAppService.sendTemplateMessage(mobile, 'document_collection', 'en_US', components).catch(e => console.error('WS Status 12 Error:', e));
-                    } else if (status === 23) { // Document Rejected
-                        WhatsAppService.sendTemplateMessage(mobile, 'document_rejected', 'en_US', []).catch(e => console.error('WS Status 23 Error:', e));
-                    } else if (status === 13) { // File Login
-                        WhatsAppService.sendTemplateMessage(mobile, 'file_login', 'en_US').catch(e => console.error('WS Status 13 Error:', e));
-                    } else if (status === 22) { // Failed to attend call (Service Message)
-                        WhatsAppService.sendServiceMessage(mobile, "We tried calling you but couldn't reach. We will call you back later.").catch(e => console.error('WS Service Message Error:', e));
-                    }
-                }
-            } catch (err) {
-                console.error('WhatsApp Notification Trigger Error:', err);
-            }
-        }
+        //             if (status === 12) { // Document Collection
+        //                 const components = [{
+        //                     type: 'body',
+        //                     parameters: [
+        //                         { type: 'text', text: updatedRecord.isidproof ? 'Aadhar' : ' ' },
+        //                         { type: 'text', text: updatedRecord.isageproof ? 'PAN' : ' ' },
+        //                         { type: 'text', text: updatedRecord.isbankstatement ? 'Bank Passbook' : ' ' },
+        //                         { type: 'text', text: updatedRecord.ispayslip ? 'Payslip' : ' ' }
+        //                     ]
+        //                 }];
+        //                 WhatsAppService.sendTemplateMessage(mobile, 'document_collection', 'en_US', components).catch(e => console.error('WS Status 12 Error:', e));
+        //             } else if (status === 23) { // Document Rejected
+        //                 WhatsAppService.sendTemplateMessage(mobile, 'document_rejected', 'en_US', []).catch(e => console.error('WS Status 23 Error:', e));
+        //             } else if (status === 13) { // File Login
+        //                 WhatsAppService.sendTemplateMessage(mobile, 'file_login', 'en_US').catch(e => console.error('WS Status 13 Error:', e));
+        //             } else if (status === 22) { // Failed to attend call (Service Message)
+        //                 WhatsAppService.sendServiceMessage(mobile, "We tried calling you but couldn't reach. We will call you back later.").catch(e => console.error('WS Service Message Error:', e));
+        //             }
+        //         }
+        //     } catch (err) {
+        //         console.error('WhatsApp Notification Trigger Error:', err);
+        //     }
+        // }
 
         // History
         const historyQuery = `INSERT INTO leadtrackhistorydetails (tracknumber, leadid, appoinmentdate, status, notes, isdirectmeet, createon, contactfollowedby, leadfollowedby) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`;
