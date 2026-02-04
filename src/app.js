@@ -14,7 +14,6 @@ const salesRouter = require('./routers/sales.router');
 const connectorRouter = require('./routers/connector.router');
 const qrcodeRouter = require('./routers/qrcode.router');
 const customerRouter = require('./routers/customer.router');
-const whatsappRouter = require('./routers/whatsapp.router');
 const metricsRouter = require('./routers/metrics.router');
 const segregationRouter = require('./routers/segregation.router');
 const creditRouter = require('./routers/credit.router');
@@ -50,7 +49,6 @@ app.get('/test', (req, res) => {
 // Mount Routers
 // Mount Routers
 // Group 1: Specific API Routers (Higher Priority)
-app.use('/api/whatsapp', whatsappRouter);
 app.use('/api', segregationRouter);
 app.use('/api', metricsRouter);
 app.use('/api/credit', creditRouter);
